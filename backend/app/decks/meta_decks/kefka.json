@@ -1,0 +1,18 @@
+{
+  "id": "kefka",
+  "commander": "Kefka, Court Mage // Kefka, Ruler of Ruin",
+  "colors": ["W", "U", "B", "R"],
+  "archetype": "4-Color Control / Chaos",
+  "top_cuts": 39,
+  "conversion_rate": 17.03,
+  "win_conditions": ["Thassa's Oracle + Demonic Consultation", "Kefka transform win"],
+  "key_cards": [
+    "Kefka, Court Mage",
+    "Thassa's Oracle", "Demonic Consultation",
+    "Mana Crypt", "Sol Ring", "Chrome Mox", "Jeweled Lotus",
+    "Force of Will", "Mana Drain", "Fierce Guardianship", "Deflecting Swat",
+    "Rhystic Study", "Mystic Remora", "Necropotence"
+  ],
+  "stax_pieces": ["Drannith Magistrate"],
+  "decklist": []
+}

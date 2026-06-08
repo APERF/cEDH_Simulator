@@ -1,0 +1,19 @@
+{
+  "id": "thrasios_yoshimaru",
+  "commander": "Thrasios, Triton Hero / Yoshimaru, Ever Faithful",
+  "colors": ["W", "U", "G"],
+  "archetype": "Bant Thoracle",
+  "top_cuts": 35,
+  "conversion_rate": 14.58,
+  "win_conditions": ["Thassa's Oracle + Demonic Consultation", "Infinite mana into Thrasios"],
+  "key_cards": [
+    "Thrasios, Triton Hero", "Yoshimaru, Ever Faithful",
+    "Thassa's Oracle", "Demonic Consultation", "Tainted Pact",
+    "Isochron Scepter", "Dramatic Reversal",
+    "Mana Crypt", "Sol Ring", "Chrome Mox", "Jeweled Lotus",
+    "Force of Will", "Fierce Guardianship", "Swan Song",
+    "Rhystic Study", "Sylvan Library", "Mystic Remora"
+  ],
+  "stax_pieces": ["Drannith Magistrate", "Linvala, Keeper of Silence"],
+  "decklist": []
+}

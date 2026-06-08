@@ -1,0 +1,19 @@
+{
+  "id": "thrasios_tymna",
+  "commander": "Thrasios, Triton Hero / Tymna the Weaver",
+  "colors": ["W", "U", "B", "G"],
+  "archetype": "4-Color Thoracle",
+  "top_cuts": 75,
+  "conversion_rate": 21.07,
+  "win_conditions": ["Thassa's Oracle + Demonic Consultation", "Infinite mana into Thrasios"],
+  "key_cards": [
+    "Thrasios, Triton Hero", "Tymna the Weaver",
+    "Thassa's Oracle", "Demonic Consultation", "Tainted Pact",
+    "Isochron Scepter", "Dramatic Reversal",
+    "Sol Ring", "Mana Crypt", "Jeweled Lotus", "Chrome Mox",
+    "Force of Will", "Mana Drain", "Counterspell", "Fierce Guardianship",
+    "Rhystic Study", "Mystic Remora", "Necropotence"
+  ],
+  "stax_pieces": ["Drannith Magistrate", "Opposition Agent"],
+  "decklist": []
+}

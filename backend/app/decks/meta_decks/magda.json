@@ -1,0 +1,19 @@
+{
+  "id": "magda",
+  "commander": "Magda, Brazen Outlaw",
+  "colors": ["R"],
+  "archetype": "Dwarf Artifact Combo",
+  "top_cuts": 53,
+  "conversion_rate": 21.03,
+  "win_conditions": ["Magda treasures into Dramatic Reversal + Isochron Scepter", "Thassa's Oracle"],
+  "key_cards": [
+    "Magda, Brazen Outlaw",
+    "Isochron Scepter", "Dramatic Reversal",
+    "Thassa's Oracle",
+    "Mana Crypt", "Sol Ring", "Chrome Mox", "Jeweled Lotus",
+    "Deflecting Swat", "Pyroblast", "Red Elemental Blast",
+    "Jeska's Will", "Dockside Extortionist"
+  ],
+  "stax_pieces": [],
+  "decklist": []
+}

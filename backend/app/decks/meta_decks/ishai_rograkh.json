@@ -1,0 +1,19 @@
+{
+  "id": "ishai_rograkh",
+  "commander": "Ishai, Ojutai Dragonspeaker / Rograkh, Son of Rohgahh",
+  "colors": ["W", "U", "R"],
+  "archetype": "Jeskai Thoracle",
+  "top_cuts": 55,
+  "conversion_rate": 21.57,
+  "win_conditions": ["Thassa's Oracle + Demonic Consultation", "Underworld Breach loop"],
+  "key_cards": [
+    "Ishai, Ojutai Dragonspeaker", "Rograkh, Son of Rohgahh",
+    "Thassa's Oracle", "Demonic Consultation",
+    "Underworld Breach", "Lion's Eye Diamond",
+    "Mana Crypt", "Sol Ring", "Chrome Mox", "Mox Diamond",
+    "Force of Will", "Fierce Guardianship", "Deflecting Swat",
+    "Rhystic Study", "Mystic Remora"
+  ],
+  "stax_pieces": ["Drannith Magistrate", "Rule of Law"],
+  "decklist": []
+}

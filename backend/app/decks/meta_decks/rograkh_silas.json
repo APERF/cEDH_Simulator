@@ -1,0 +1,19 @@
+{
+  "id": "rograkh_silas",
+  "commander": "Rograkh, Son of Rohgahh / Silas Renn, Seeker Adept",
+  "colors": ["U", "B", "R"],
+  "archetype": "Artifact Combo",
+  "top_cuts": 134,
+  "conversion_rate": 19.97,
+  "win_conditions": ["Thassa's Oracle + Demonic Consultation", "Animate Dead loops"],
+  "key_cards": [
+    "Rograkh, Son of Rohgahh", "Silas Renn, Seeker Adept",
+    "Thassa's Oracle", "Demonic Consultation",
+    "Isochron Scepter", "Dramatic Reversal",
+    "Mox Opal", "Chrome Mox", "Mana Crypt", "Sol Ring",
+    "Force of Will", "Mana Drain", "Swan Song", "Mental Misstep",
+    "Rhystic Study", "Mystic Remora", "Necropotence"
+  ],
+  "stax_pieces": ["Null Rod"],
+  "decklist": []
+}

@@ -1,0 +1,19 @@
+{
+  "id": "tivit",
+  "commander": "Tivit, Seller of Secrets",
+  "colors": ["W", "U", "B"],
+  "archetype": "Esper Bribery / Vote Control",
+  "top_cuts": 42,
+  "conversion_rate": 21.21,
+  "win_conditions": ["Thassa's Oracle + Demonic Consultation", "Tivit trigger loops"],
+  "key_cards": [
+    "Tivit, Seller of Secrets",
+    "Thassa's Oracle", "Demonic Consultation", "Tainted Pact",
+    "Mana Crypt", "Sol Ring", "Chrome Mox", "Jeweled Lotus",
+    "Force of Will", "Mana Drain", "Fierce Guardianship",
+    "Rhystic Study", "Mystic Remora", "Necropotence",
+    "Smothering Tithe"
+  ],
+  "stax_pieces": ["Drannith Magistrate", "Cursed Totem"],
+  "decklist": []
+}

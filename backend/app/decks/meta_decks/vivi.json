@@ -1,0 +1,19 @@
+{
+  "id": "vivi",
+  "commander": "Vivi Ornitier",
+  "colors": ["U", "B", "R"],
+  "archetype": "Grixis Storm",
+  "top_cuts": 40,
+  "conversion_rate": 15.27,
+  "win_conditions": ["Underworld Breach + Brain Freeze", "Thassa's Oracle"],
+  "key_cards": [
+    "Vivi Ornitier",
+    "Underworld Breach", "Brain Freeze", "Thassa's Oracle",
+    "Lion's Eye Diamond", "Lotus Petal",
+    "Mana Crypt", "Sol Ring", "Chrome Mox",
+    "Force of Will", "Mana Drain", "Swan Song",
+    "Wheel of Fortune", "Windfall", "Mystic Remora"
+  ],
+  "stax_pieces": [],
+  "decklist": []
+}

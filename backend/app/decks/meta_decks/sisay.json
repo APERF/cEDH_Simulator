@@ -1,0 +1,19 @@
+{
+  "id": "sisay",
+  "commander": "Sisay, Weatherlight Captain",
+  "colors": ["W", "U", "B", "R", "G"],
+  "archetype": "Superfriends / Legendary Toolbox",
+  "top_cuts": 124,
+  "conversion_rate": 21.91,
+  "win_conditions": ["Sisay tutor chain into Jegantha + Kinnan", "Thassa's Oracle"],
+  "key_cards": [
+    "Sisay, Weatherlight Captain", "Jegantha, the Wellspring",
+    "Thassa's Oracle", "Demonic Consultation",
+    "Kinnan, Bonder Prodigy", "Kenrith, the Returned King",
+    "Mana Crypt", "Sol Ring", "Chrome Mox", "Jeweled Lotus",
+    "Force of Will", "Fierce Guardianship", "Swan Song",
+    "Rhystic Study", "Sylvan Library"
+  ],
+  "stax_pieces": ["Drannith Magistrate", "Linvala, Keeper of Silence"],
+  "decklist": []
+}

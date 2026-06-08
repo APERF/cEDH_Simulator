@@ -1,0 +1,19 @@
+{
+  "id": "rograkh_thrasios",
+  "commander": "Rograkh, Son of Rohgahh / Thrasios, Triton Hero",
+  "colors": ["W", "U", "B", "R", "G"],
+  "archetype": "5-Color Thoracle",
+  "top_cuts": 189,
+  "conversion_rate": 21.65,
+  "win_conditions": ["Thassa's Oracle + Demonic Consultation", "Isochron Scepter + Dramatic Reversal infinite mana"],
+  "key_cards": [
+    "Thrasios, Triton Hero", "Rograkh, Son of Rohgahh",
+    "Thassa's Oracle", "Demonic Consultation", "Tainted Pact",
+    "Isochron Scepter", "Dramatic Reversal",
+    "Sol Ring", "Mana Crypt", "Chrome Mox", "Mox Diamond", "Lotus Petal",
+    "Force of Will", "Mana Drain", "Fierce Guardianship", "Deflecting Swat",
+    "Rhystic Study", "Mystic Remora"
+  ],
+  "stax_pieces": ["Opposition Agent", "Drannith Magistrate"],
+  "decklist": []
+}

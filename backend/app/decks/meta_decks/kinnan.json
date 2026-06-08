@@ -1,0 +1,19 @@
+{
+  "id": "kinnan",
+  "commander": "Kinnan, Bonder Prodigy",
+  "colors": ["G", "U"],
+  "archetype": "Mana Dork Combo",
+  "top_cuts": 224,
+  "conversion_rate": 20.31,
+  "win_conditions": ["Kinnan + Basalt Monolith infinite mana", "Thassa's Oracle"],
+  "key_cards": [
+    "Kinnan, Bonder Prodigy", "Basalt Monolith", "Freed from the Real", "Pemmin's Aura",
+    "Thassa's Oracle", "Blue Sun's Zenith",
+    "Birds of Paradise", "Llanowar Elves", "Elvish Mystic", "Arbor Elf",
+    "Sol Ring", "Mana Crypt", "Chrome Mox", "Mox Diamond",
+    "Force of Will", "Mana Drain", "Counterspell", "Swan Song",
+    "Rhystic Study", "Mystic Remora", "Sylvan Library"
+  ],
+  "stax_pieces": [],
+  "decklist": []
+}

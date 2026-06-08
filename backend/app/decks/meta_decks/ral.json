@@ -1,0 +1,19 @@
+{
+  "id": "ral",
+  "commander": "Ral, Monsoon Mage // Ral, Leyline Prodigy",
+  "colors": ["U", "R"],
+  "archetype": "Storm / Spellslinger",
+  "top_cuts": 58,
+  "conversion_rate": 17.42,
+  "win_conditions": ["Ral storm triggers + Grapeshot", "Underworld Breach loop"],
+  "key_cards": [
+    "Ral, Monsoon Mage", "Grapeshot", "Tendrils of Agony",
+    "Underworld Breach", "Brain Freeze",
+    "Mana Crypt", "Sol Ring", "Chrome Mox", "Lotus Petal",
+    "Force of Will", "Mana Drain", "Swan Song", "Flusterstorm",
+    "Mystic Remora", "Rhystic Study",
+    "Wheel of Fortune", "Windfall", "Timetwister"
+  ],
+  "stax_pieces": [],
+  "decklist": []
+}

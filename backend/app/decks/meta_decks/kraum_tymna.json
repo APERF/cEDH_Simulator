@@ -1,0 +1,19 @@
+{
+  "id": "kraum_tymna",
+  "commander": "Kraum, Ludevic's Opus / Tymna the Weaver",
+  "colors": ["W", "U", "B", "R"],
+  "archetype": "Ad Nauseam / Thoracle",
+  "top_cuts": 318,
+  "conversion_rate": 23.25,
+  "win_conditions": ["Thassa's Oracle + Demonic Consultation", "Ad Nauseam + Angel's Grace"],
+  "key_cards": [
+    "Ad Nauseam", "Thassa's Oracle", "Demonic Consultation", "Tainted Pact",
+    "Force of Will", "Mana Drain", "Deflecting Swat", "Fierce Guardianship",
+    "Tymna the Weaver", "Kraum, Ludevic's Opus",
+    "Sol Ring", "Mana Crypt", "Chrome Mox", "Mox Diamond", "Jeweled Lotus",
+    "Rhystic Study", "Mystic Remora", "Necropotence",
+    "Swan Song", "Flusterstorm", "Mental Misstep", "Spell Pierce"
+  ],
+  "stax_pieces": ["Drannith Magistrate", "Cursed Totem"],
+  "decklist": []
+}

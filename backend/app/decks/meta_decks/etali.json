@@ -1,0 +1,18 @@
+{
+  "id": "etali",
+  "commander": "Etali, Primal Conqueror // Etali, Primal Sickness",
+  "colors": ["G", "R"],
+  "archetype": "Ramp / Attack Triggers",
+  "top_cuts": 55,
+  "conversion_rate": 13.65,
+  "win_conditions": ["Etali attack trigger cascade", "Haste + free cast win"],
+  "key_cards": [
+    "Etali, Primal Conqueror",
+    "Selvala, Heart of the Wilds", "Berserk", "Finale of Devastation",
+    "Mana Crypt", "Sol Ring", "Jeweled Lotus",
+    "Deflecting Swat", "Savage Summoning",
+    "Sylvan Library", "Ancient Tomb", "Gaea's Cradle"
+  ],
+  "stax_pieces": [],
+  "decklist": []
+}

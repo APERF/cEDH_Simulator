@@ -1,0 +1,19 @@
+{
+  "id": "dargo_tymna",
+  "commander": "Dargo, the Shipwrecker / Tymna the Weaver",
+  "colors": ["W", "B", "R"],
+  "archetype": "Mardu Thoracle",
+  "top_cuts": 54,
+  "conversion_rate": 17.31,
+  "win_conditions": ["Thassa's Oracle + Demonic Consultation", "Underworld Breach + Wheel loop"],
+  "key_cards": [
+    "Dargo, the Shipwrecker", "Tymna the Weaver",
+    "Thassa's Oracle", "Demonic Consultation",
+    "Underworld Breach", "Lion's Eye Diamond",
+    "Mana Crypt", "Sol Ring", "Chrome Mox", "Jeweled Lotus",
+    "Force of Will", "Fierce Guardianship", "Deflecting Swat",
+    "Necropotence", "Mystic Remora"
+  ],
+  "stax_pieces": ["Drannith Magistrate", "Null Rod"],
+  "decklist": []
+}
