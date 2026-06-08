@@ -36,6 +36,11 @@ export interface Card {
   zone?: string;
 }
 
+export interface HandCard {
+  id: string;
+  name: string;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -44,6 +49,7 @@ export interface Player {
   commander_damage: Record<string, number>;
   hand_size: number;
   battlefield_count: number;
+  hand: HandCard[];
 }
 
 export interface GameState {

@@ -31,6 +31,17 @@ export function PlayerPanel({ player, isActive }: Props) {
         </div>
       </div>
 
+      {player.is_human && (player.hand ?? []).length > 0 && (
+        <div className="pp-hand">
+          <div className="pp-hand-label">Hand</div>
+          <div className="pp-hand-cards">
+            {(player.hand ?? []).map((card) => (
+              <div key={card.id} className="hand-card">{card.name}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {cmdDamage.length > 0 && (
         <div className="pp-cmd-damage">
           {cmdDamage.map(([src, dmg]) => (

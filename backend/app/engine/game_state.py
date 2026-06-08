@@ -65,6 +65,10 @@ class GameState:
                     "commander_damage": p.commander_damage,
                     "hand_size": len(p.hand),
                     "battlefield_count": len(p.battlefield),
+                    "hand": [
+                        {"id": c.id, "name": c.name}
+                        for c in p.hand.cards
+                    ] if p.is_human else [],
                 }
                 for p in self.players
             ],

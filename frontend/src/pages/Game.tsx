@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Board } from "../components/Board/Board";
 import { useGameStore } from "../store/gameStore";
@@ -7,10 +7,14 @@ import { getGameState, sendAction, advanceAiTurn } from "../services/api";
 export function Game() {
   const { gameId } = useParams<{ gameId: string }>();
   const { gameState, actionLog, appendLog, setGameState, setLoading, isLoading } = useGameStore();
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!gameId) return;
-    getGameState(gameId).then(setGameState).catch(() => {});
+    setFetchError(null);
+    getGameState(gameId)
+      .then(setGameState)
+      .catch((e) => setFetchError(e?.response?.data?.detail ?? e?.message ?? "Failed to load game"));
   }, [gameId]);
 
   async function handlePassPriority() {
@@ -65,6 +69,11 @@ export function Game() {
 
       <div className="game-main">
         <div className="board-area">
+          {fetchError && (
+            <div style={{ color: "var(--red)", padding: "12px", fontSize: "13px" }}>
+              Error loading game: {fetchError}
+            </div>
+          )}
           <Board />
         </div>
 
