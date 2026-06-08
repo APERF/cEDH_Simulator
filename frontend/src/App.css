@@ -421,10 +421,26 @@
 
 .pp-hand-cards {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
-  max-height: 160px;
-  overflow-y: auto;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.hand-card-img {
+  height: 120px;
+  width: auto;
+  border-radius: 6px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: box-shadow 0.15s, outline 0.15s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+.hand-card-img:hover {
+  box-shadow: 0 4px 16px rgba(201,165,90,0.5);
+  outline: 2px solid var(--gold-border);
 }
 
 .hand-card {
@@ -435,15 +451,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.hand-card.face-down {
-  color: var(--text-dim);
-  background: var(--panel);
-  font-style: italic;
-  text-align: center;
+  flex-shrink: 0;
 }
 
 .pp-cmd-damage { display: flex; flex-direction: column; gap: 2px; }

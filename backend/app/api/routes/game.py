@@ -7,10 +7,11 @@ from app.engine.card import Card
 from app.engine.player import Player
 from app.engine.game_state import GameState
 from app.decks.parser import parse_decklist
+from app.cards.scryfall import fetch_collection_images
 
 router = APIRouter()
 
-_sessions: dict[str, GameState] = {}
+_sessions: dict[str, GameState] = {}  # noqa
 
 _META_DIR = os.path.join(os.path.dirname(__file__), "../../decks/meta_decks")
 
@@ -70,6 +71,13 @@ async def new_game(request: NewGameRequest):
     )
     human.library.shuffle()
     human.draw(7)
+
+    # Enrich all human cards with Scryfall images (one batch call)
+    all_human_cards = list(human.hand.cards) + list(human.library._cards)
+    unique_names = list({c.name for c in all_human_cards})
+    images = await fetch_collection_images(unique_names)
+    for card in all_human_cards:
+        card.image_uri = images.get(card.name)
 
     players: list[Player] = [human]
     for i, commander in enumerate(request.opponent_commanders[:3]):

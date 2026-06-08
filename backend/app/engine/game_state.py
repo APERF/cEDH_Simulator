@@ -47,7 +47,7 @@ class GameState:
     def log(self, message: str) -> None:
         self.game_log.append(message)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict:  # noqa
         return {
             "game_id": self.game_id,
             "turn": self.turn,
@@ -66,7 +66,7 @@ class GameState:
                     "hand_size": len(p.hand),
                     "battlefield_count": len(p.battlefield),
                     "hand": [
-                        {"id": c.id, "name": c.name}
+                        {"id": c.id, "name": c.name, "image_uri": c.image_uri}
                         for c in p.hand.cards
                     ] if p.is_human else [],
                 }

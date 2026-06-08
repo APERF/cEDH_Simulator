@@ -39,6 +39,7 @@ export interface Card {
 export interface HandCard {
   id: string;
   name: string;
+  image_uri: string | null;
 }
 
 export interface Player {

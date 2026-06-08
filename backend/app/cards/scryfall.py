@@ -22,6 +22,44 @@ async def fetch_card_by_name(name: str) -> dict | None:
     return data
 
 
+async def fetch_collection_images(names: list[str]) -> dict[str, str]:
+    """Batch-fetch image URIs for up to N card names via POST /cards/collection.
+    Returns {canonical_name: image_uri}. Already-cached names are skipped."""
+    result: dict[str, str] = {}
+    to_fetch = [n for n in names if n not in _cache]
+
+    async with httpx.AsyncClient() as client:
+        for i in range(0, len(to_fetch), 75):
+            chunk = to_fetch[i : i + 75]
+            resp = await client.post(
+                f"{SCRYFALL_BASE}/cards/collection",
+                json={"identifiers": [{"name": n} for n in chunk]},
+                timeout=30,
+            )
+            if resp.status_code != 200:
+                continue
+            for card in resp.json().get("data", []):
+                _cache[card["name"]] = card
+                # also index by searched name if Scryfall normalised it
+                for searched in chunk:
+                    if searched.lower() in card["name"].lower() or card["name"].lower() in searched.lower():
+                        _cache[searched] = card
+
+    for name in names:
+        card_data = _cache.get(name)
+        if not card_data:
+            continue
+        if "image_uris" in card_data:
+            uri = card_data["image_uris"].get("normal")
+        elif "card_faces" in card_data:
+            uri = card_data["card_faces"][0].get("image_uris", {}).get("normal")
+        else:
+            uri = None
+        if uri:
+            result[name] = uri
+    return result
+
+
 async def fetch_card_by_id(scryfall_id: str) -> dict | None:
     async with httpx.AsyncClient() as client:
         resp = await client.get(f"{SCRYFALL_BASE}/cards/{scryfall_id}", timeout=10)
