@@ -1,0 +1,26 @@
+{
+  "id": "thrasios_vial_smasher",
+  "commander": "Thrasios, Triton Hero / Vial Smasher the Fierce",
+  "colors": ["U", "B", "R", "G"],
+  "archetype": "4-Color Thoracle",
+  "top_cuts": 29,
+  "conversion_rate": 33.33,
+  "win_conditions": [
+    "Thassa's Oracle + Demonic Consultation",
+    "Thassa's Oracle + Tainted Pact",
+    "Ad Nauseam + Angel's Grace"
+  ],
+  "key_cards": [
+    "Thrasios, Triton Hero", "Vial Smasher the Fierce",
+    "Thassa's Oracle", "Demonic Consultation", "Tainted Pact",
+    "Ad Nauseam", "Angel's Grace",
+    "Force of Will", "Mana Drain", "Deflecting Swat", "Fierce Guardianship",
+    "Vampiric Tutor", "Demonic Tutor", "Imperial Seal",
+    "Sol Ring", "Mana Crypt", "Chrome Mox", "Mox Diamond", "Jeweled Lotus",
+    "Rhystic Study", "Mystic Remora", "Necropotence",
+    "Swan Song", "Flusterstorm", "Mental Misstep", "Spell Pierce",
+    "Carpet of Flowers", "Culling the Weak"
+  ],
+  "stax_pieces": ["Drannith Magistrate", "Cursed Totem"],
+  "decklist": []
+}

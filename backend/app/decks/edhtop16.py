@@ -4,11 +4,12 @@ from curl_cffi import requests as cffi_requests
 _GRAPHQL_URL = "https://edhtop16.com/api/graphql"
 _QUERY = """
 {
-  commanders(first: 100, sortBy: TOP_CUTS, timePeriod: ALL_TIME) {
+  commanders(first: 100, sortBy: TOP_CUTS, timePeriod: SIX_MONTHS, minEntries: 20, minTournamentSize: 50) {
     edges {
       node {
         name
-        stats(filters: { timePeriod: ALL_TIME, minSize: 60 }) {
+        colorId
+        stats(filters: { timePeriod: SIX_MONTHS, minSize: 50 }) {
           topCuts
           conversionRate
         }
@@ -41,6 +42,7 @@ def _fetch_live() -> dict[str, dict]:
         result[node["name"]] = {
             "top_cuts": stats["topCuts"],
             "conversion_rate": round(stats["conversionRate"] * 100, 2),
+            "colors": list(node["colorId"]),
         }
     return result
 

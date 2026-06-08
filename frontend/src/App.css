@@ -224,6 +224,16 @@
 .dc-archetype { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.4px; }
 .dc-stats { font-size: 11px; color: var(--text); }
 
+.meta-disclaimer {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  padding-top: 4px;
+}
+
+.meta-disclaimer a { color: var(--text-dim); text-decoration: underline; text-underline-offset: 2px; }
+.meta-disclaimer a:hover { color: var(--text); }
+
 /* ── Color Pips ── */
 .color-pips { display: flex; gap: 3px; }
 
@@ -231,9 +241,11 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 1px solid rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   flex-shrink: 0;
 }
+
+.pip-B { border-color: rgba(255, 255, 255, 0.3); }
 
 .pip-W { background: var(--pip-w); }
 .pip-U { background: var(--pip-u); }

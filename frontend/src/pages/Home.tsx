@@ -90,7 +90,7 @@ export function Home() {
           </div>
 
           <div className="meta-deck-grid">
-            {metaDecks.map((deck) => (
+            {[...metaDecks].sort((a, b) => b.top_cuts - a.top_cuts).map((deck) => (
               <div
                 key={deck.id}
                 className={`meta-deck-card ${selectedOpponents.includes(deck.commander) ? "selected" : ""}`}
@@ -103,6 +103,12 @@ export function Home() {
               </div>
             ))}
           </div>
+
+          <p className="meta-disclaimer">
+            Lists sourced live from{" "}
+            <a href="https://edhtop16.com" target="_blank" rel="noreferrer">edhtop16.com</a>
+            {" "}— 6-month top cuts, 50+ player tournaments.
+          </p>
         </div>
       </div>
 

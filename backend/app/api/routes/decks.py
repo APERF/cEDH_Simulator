@@ -62,7 +62,8 @@ async def deck_from_moxfield(url: str = Query(...)):
 
 @router.get("/meta")
 async def list_meta_decks():
-    live_stats = get_live_stats()
+    import asyncio
+    live_stats = await asyncio.to_thread(get_live_stats)
     decks = []
     for fname in os.listdir(META_DECKS_DIR):
         if fname.endswith(".json"):
@@ -73,7 +74,7 @@ async def list_meta_decks():
             decks.append({
                 "id": data["id"],
                 "commander": commander,
-                "colors": data["colors"],
+                "colors": live.get("colors", data["colors"]),
                 "archetype": data["archetype"],
                 "top_cuts": live.get("top_cuts", data.get("top_cuts")),
                 "conversion_rate": live.get("conversion_rate", data.get("conversion_rate")),
