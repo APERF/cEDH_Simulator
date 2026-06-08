@@ -79,6 +79,7 @@ export function DeckInput({ onConfirm }: Props) {
         placeholder="Deck name (auto-filled from Moxfield)"
         value={name}
         onChange={(e) => setName(e.target.value)}
+        disabled={isUrl}
       />
       <textarea
         placeholder={"Paste a Moxfield URL:\n  https://www.moxfield.com/decks/...\n\nOr paste a decklist (MTGO format):\n  1 Sol Ring\n  1 Command Tower\n  ..."}
@@ -93,7 +94,7 @@ export function DeckInput({ onConfirm }: Props) {
       />
 
       {isUrl && !importError && (
-        <div className="url-hint">&#x2726; Moxfield URL detected — click below to import &amp; validate</div>
+        <div className="url-hint">&#x2726; Moxfield URL detected — deck name will import from Moxfield. Click below to import &amp; validate</div>
       )}
 
       {importError && <div className="import-error">{importError}</div>}

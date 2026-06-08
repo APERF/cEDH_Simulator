@@ -1,8 +1,8 @@
 {
   "id": "rograkh_thrasios",
   "commander": "Rograkh, Son of Rohgahh / Thrasios, Triton Hero",
-  "colors": ["W", "U", "B", "R", "G"],
-  "archetype": "5-Color Thoracle",
+  "colors": ["U", "R", "G"],
+  "archetype": "Temur Thoracle",
   "top_cuts": 189,
   "conversion_rate": 21.65,
   "win_conditions": ["Thassa's Oracle + Demonic Consultation", "Isochron Scepter + Dramatic Reversal infinite mana"],
