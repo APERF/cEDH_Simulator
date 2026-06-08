@@ -55,6 +55,9 @@ export interface Player {
 
 export interface GameState {
   game_id: string;
+  mulligan_phase: "mulliganing" | "selecting_bottom" | "playing";
+  mulligan_count: number;
+  cards_to_bottom: number;
   turn: number;
   active_player_id: string;
   phase: Phase;

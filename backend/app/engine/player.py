@@ -64,6 +64,22 @@ class Player:
             drawn.append(card)
         return drawn
 
+    def return_hand_to_library(self) -> None:
+        """Shuffle hand back into library (for mulligan)."""
+        for card in self.hand.cards:
+            card.zone = "library"  # type: ignore[assignment]
+            self.library._cards.append(card)
+        self.hand._cards.clear()
+        self.library.shuffle()
+
+    def put_on_bottom(self, card_ids: list[str]) -> None:
+        """Move specific hand cards to the bottom of library (post-mulligan)."""
+        for card_id in card_ids:
+            card = self.hand.remove(card_id)
+            if card:
+                card.zone = "library"  # type: ignore[assignment]
+                self.library._cards.append(card)
+
     def take_damage(self, amount: int, source_player_id: str | None = None) -> None:
         self.life_total -= amount
         if source_player_id:

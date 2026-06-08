@@ -18,6 +18,9 @@ class GameState:
         self.stack = Stack()
         self.winner: Optional[str] = None
         self.game_log: list[str] = []
+        # Mulligan state (human player only; AI auto-keeps)
+        self.mulligan_phase: str = "mulliganing"  # "mulliganing" | "selecting_bottom" | "playing"
+        self.human_mulligan_count: int = 0
 
     @property
     def active_player(self) -> Player:
@@ -47,9 +50,17 @@ class GameState:
     def log(self, message: str) -> None:
         self.game_log.append(message)
 
-    def to_dict(self) -> dict:  # noqa
+    @property
+    def cards_to_bottom(self) -> int:
+        """Cards the human must put on the bottom when keeping (first mulligan free)."""
+        return max(0, self.human_mulligan_count - 1)
+
+    def to_dict(self) -> dict:
         return {
             "game_id": self.game_id,
+            "mulligan_phase": self.mulligan_phase,
+            "mulligan_count": self.human_mulligan_count,
+            "cards_to_bottom": self.cards_to_bottom,
             "turn": self.turn,
             "active_player_id": self.active_player.id,
             "phase": self.phase.value,

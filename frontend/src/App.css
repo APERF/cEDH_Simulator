@@ -457,6 +457,102 @@
 .pp-cmd-damage { display: flex; flex-direction: column; gap: 2px; }
 .cmd-entry { display: flex; justify-content: space-between; font-size: 11px; color: var(--orange); }
 
+/* ── Mulligan Phase ── */
+.mulligan-overlay {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 40px;
+  background: var(--bg);
+}
+
+.mulligan-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.mulligan-header { text-align: center; }
+.mulligan-header h2 {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--gold-light);
+  margin-bottom: 6px;
+}
+.mulligan-sub { font-size: 14px; color: var(--text); }
+
+.mulligan-hand {
+  display: flex;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+
+.mulligan-card {
+  position: relative;
+  cursor: default;
+  border-radius: 8px;
+  transition: transform 0.12s, box-shadow 0.12s;
+  flex: 1;
+  min-width: 0;
+}
+
+.mulligan-card.bottom-selected {
+  outline: 3px solid var(--red);
+  border-radius: 8px;
+}
+
+.mulligan-card:not(.bottom-selected):hover { transform: translateY(-4px); }
+
+.mulligan-card-img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 63 / 88;
+  border-radius: 8px;
+  display: block;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  object-fit: cover;
+}
+
+.bottom-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--red);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+.mulligan-card-text {
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.mulligan-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.mulligan-actions button { min-width: 180px; padding: 12px 24px; font-size: 14px; }
+
+.mulligan-rule-note {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
 /* ── Sidebar ── */
 .game-sidebar {
   display: flex;

@@ -100,6 +100,57 @@ async def get_game_state(game_id: str):
     return _sessions[game_id].to_dict()
 
 
+@router.post("/{game_id}/mulligan", response_model=dict)
+async def mulligan_action(game_id: str, body: dict):
+    if game_id not in _sessions:
+        raise HTTPException(status_code=404, detail="Game not found")
+    gs = _sessions[game_id]
+    if gs.mulligan_phase not in ("mulliganing", "selecting_bottom"):
+        raise HTTPException(status_code=400, detail="Not in mulligan phase")
+
+    human = next(p for p in gs.players if p.is_human)
+    action = body.get("action")
+
+    if action == "mulligan":
+        if gs.mulligan_phase != "mulliganing":
+            raise HTTPException(status_code=400, detail="Cannot mulligan now")
+        human.return_hand_to_library()
+        human.draw(7)
+        # Re-enrich new hand cards with images (may already be cached)
+        new_names = [c.name for c in human.hand.cards if not c.image_uri]
+        if new_names:
+            images = await fetch_collection_images(new_names)
+            for card in human.hand.cards:
+                if not card.image_uri:
+                    card.image_uri = images.get(card.name)
+        gs.human_mulligan_count += 1
+
+    elif action == "keep":
+        if gs.mulligan_phase != "mulliganing":
+            raise HTTPException(status_code=400, detail="Cannot keep now")
+        if gs.cards_to_bottom == 0:
+            gs.mulligan_phase = "playing"
+        else:
+            gs.mulligan_phase = "selecting_bottom"
+
+    elif action == "bottom":
+        if gs.mulligan_phase != "selecting_bottom":
+            raise HTTPException(status_code=400, detail="Not selecting bottom cards")
+        card_ids: list[str] = body.get("card_ids", [])
+        if len(card_ids) != gs.cards_to_bottom:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Must select exactly {gs.cards_to_bottom} card(s) to put on bottom"
+            )
+        human.put_on_bottom(card_ids)
+        gs.mulligan_phase = "playing"
+
+    else:
+        raise HTTPException(status_code=400, detail="action must be 'mulligan', 'keep', or 'bottom'")
+
+    return gs.to_dict()
+
+
 @router.post("/{game_id}/action", response_model=dict)
 async def player_action(game_id: str, action: dict):
     if game_id not in _sessions:

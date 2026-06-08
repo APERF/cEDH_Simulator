@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Board } from "../components/Board/Board";
+import { MulliganPhase } from "../components/MulliganPhase/MulliganPhase";
 import { useGameStore } from "../store/gameStore";
 import { getGameState, sendAction, advanceAiTurn } from "../services/api";
 
@@ -74,7 +75,11 @@ export function Game() {
               Error loading game: {fetchError}
             </div>
           )}
-          <Board />
+          {gameState && gameState.mulligan_phase !== "playing" ? (
+            <MulliganPhase gameState={gameState} onStateChange={setGameState} />
+          ) : (
+            <Board />
+          )}
         </div>
 
         <div className="game-sidebar">

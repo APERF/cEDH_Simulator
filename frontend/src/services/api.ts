@@ -20,6 +20,18 @@ export async function getGameState(gameId: string): Promise<GameState> {
   return data;
 }
 
+export async function mulliganAction(
+  gameId: string,
+  action: "mulligan" | "keep" | "bottom",
+  cardIds?: string[]
+): Promise<GameState> {
+  const { data } = await api.post(`/game/${gameId}/mulligan`, {
+    action,
+    card_ids: cardIds ?? [],
+  });
+  return data;
+}
+
 export async function sendAction(
   gameId: string,
   action: GameAction
