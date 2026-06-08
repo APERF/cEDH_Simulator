@@ -48,6 +48,13 @@ export async function validateDecklist(
   return data;
 }
 
+export async function fetchMoxfieldDeck(
+  url: string
+): Promise<{ name: string; decklist: string }> {
+  const { data } = await api.get("/decks/from-moxfield", { params: { url } });
+  return data;
+}
+
 export async function searchCard(name: string) {
   const { data } = await api.get("/cards/search", { params: { name } });
   return data;
