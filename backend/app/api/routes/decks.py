@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Query
 from app.models.schemas import DecklistInput
 from app.decks.parser import parse_decklist, validate_deck_size
 from app.cards.banned_list import ensure_loaded, is_banned
+from app.decks.edhtop16 import get_live_stats
 from curl_cffi import requests as cffi_requests
 import json
 import os
@@ -61,20 +62,22 @@ async def deck_from_moxfield(url: str = Query(...)):
 
 @router.get("/meta")
 async def list_meta_decks():
-    """Return the list of available top-15 meta commander decklists."""
+    live_stats = get_live_stats()
     decks = []
     for fname in os.listdir(META_DECKS_DIR):
         if fname.endswith(".json"):
             with open(os.path.join(META_DECKS_DIR, fname)) as f:
                 data = json.load(f)
-                decks.append({
-                    "id": data["id"],
-                    "commander": data["commander"],
-                    "colors": data["colors"],
-                    "archetype": data["archetype"],
-                    "top_cuts": data.get("top_cuts"),
-                    "conversion_rate": data.get("conversion_rate"),
-                })
+            commander = data["commander"]
+            live = live_stats.get(commander, {})
+            decks.append({
+                "id": data["id"],
+                "commander": commander,
+                "colors": data["colors"],
+                "archetype": data["archetype"],
+                "top_cuts": live.get("top_cuts", data.get("top_cuts")),
+                "conversion_rate": live.get("conversion_rate", data.get("conversion_rate")),
+            })
     return {"decks": decks}
 
 

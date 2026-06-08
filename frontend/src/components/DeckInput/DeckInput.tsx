@@ -25,7 +25,12 @@ export function DeckInput({ onConfirm }: Props) {
   const isUrl = isMoxfieldUrl(input);
   const busy = status !== "idle";
 
-  async function handleValidate() {
+  async function handleAction() {
+    if (validation?.valid) {
+      onConfirm(name || "My Deck", decklist ?? input);
+      return;
+    }
+
     setValidation(null);
     setImportError(null);
 
@@ -60,24 +65,24 @@ export function DeckInput({ onConfirm }: Props) {
     }
   }
 
-  function handleConfirm() {
-    onConfirm(name || "My Deck", decklist ?? input);
-  }
+  const buttonLabel =
+    status === "importing" ? "Importing..." :
+    status === "checking"  ? "Validating..." :
+    validation?.valid      ? "Confirm Deck ✓" :
+    isUrl                  ? "Import & Validate" :
+    "Validate Deck";
 
   return (
     <div className="deck-input">
-      <h2>Your Deck</h2>
       <input
         type="text"
-        placeholder="Deck name (optional — auto-filled from Moxfield)"
+        placeholder="Deck name (auto-filled from Moxfield)"
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
       <textarea
-        placeholder={
-          "Paste a Moxfield URL:\n  https://www.moxfield.com/decks/...\n\nOr paste a decklist (MTGO / Moxfield format):\n  1 Sol Ring\n  1 Command Tower\n  ..."
-        }
-        rows={12}
+        placeholder={"Paste a Moxfield URL:\n  https://www.moxfield.com/decks/...\n\nOr paste a decklist (MTGO format):\n  1 Sol Ring\n  1 Command Tower\n  ..."}
+        rows={10}
         value={input}
         onChange={(e) => {
           setInput(e.target.value);
@@ -87,40 +92,29 @@ export function DeckInput({ onConfirm }: Props) {
         }}
       />
 
-      {isUrl && (
-        <div className="url-hint">
-          Moxfield URL detected — click below to import &amp; validate.
-        </div>
+      {isUrl && !importError && (
+        <div className="url-hint">&#x2726; Moxfield URL detected — click below to import &amp; validate</div>
       )}
 
       {importError && <div className="import-error">{importError}</div>}
 
-      <div className="actions">
-        <button onClick={handleValidate} disabled={busy || !input.trim()}>
-          {status === "importing"
-            ? "Importing..."
-            : status === "checking"
-            ? "Validating..."
-            : isUrl
-            ? "Import & Validate"
-            : "Validate Deck"}
-        </button>
+      <button
+        className={validation?.valid ? "primary" : ""}
+        onClick={handleAction}
+        disabled={busy || !input.trim()}
+      >
+        {buttonLabel}
+      </button>
 
-        {validation && (
-          <div className={`validation ${validation.valid ? "valid" : "invalid"}`}>
-            <p>{validation.card_count} cards</p>
-            {validation.size_error && (
-              <p className="error">{validation.size_error}</p>
-            )}
-            {validation.banned_cards.length > 0 && (
-              <p className="error">Banned: {validation.banned_cards.join(", ")}</p>
-            )}
-            {validation.valid && (
-              <button onClick={handleConfirm}>Confirm &amp; Continue</button>
-            )}
-          </div>
-        )}
-      </div>
+      {validation && (
+        <div className={`validation-result ${validation.valid ? "valid" : "invalid"}`}>
+          <div className="v-count">{validation.card_count} cards</div>
+          {validation.size_error && <div className="v-error">{validation.size_error}</div>}
+          {validation.banned_cards.length > 0 && (
+            <div className="v-error">Banned: {validation.banned_cards.join(", ")}</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
