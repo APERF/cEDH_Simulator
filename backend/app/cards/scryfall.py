@@ -31,19 +31,21 @@ async def fetch_collection_images(names: list[str]) -> dict[str, str]:
     async with httpx.AsyncClient() as client:
         for i in range(0, len(to_fetch), 75):
             chunk = to_fetch[i : i + 75]
+            # DFC names ("Front // Back") confuse the collection API — use only the front face
+            lookup = {n: n.split(" // ")[0].strip() if " // " in n else n for n in chunk}
             resp = await client.post(
                 f"{SCRYFALL_BASE}/cards/collection",
-                json={"identifiers": [{"name": n} for n in chunk]},
+                json={"identifiers": [{"name": lookup[n]} for n in chunk]},
                 timeout=30,
             )
             if resp.status_code != 200:
                 continue
             for card in resp.json().get("data", []):
                 _cache[card["name"]] = card
-                # also index by searched name if Scryfall normalised it
-                for searched in chunk:
-                    if searched.lower() in card["name"].lower() or card["name"].lower() in searched.lower():
-                        _cache[searched] = card
+                # also index by original searched name if Scryfall normalised it
+                for orig, front in lookup.items():
+                    if front.lower() in card["name"].lower() or card["name"].lower() in front.lower():
+                        _cache[orig] = card
 
     for name in names:
         card_data = _cache.get(name)

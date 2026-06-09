@@ -51,6 +51,12 @@ export function Game() {
             <span className="pb-value">{gameState.turn}</span>
           </div>
           <div className="pb-item">
+            <span className="pb-label">Active</span>
+            <span className="pb-value">
+              {gameState.players.find(p => p.id === gameState.active_player_id)?.name ?? "—"}
+            </span>
+          </div>
+          <div className="pb-item">
             <span className="pb-label">Phase</span>
             <span className="pb-value">{gameState.phase.replace(/_/g, " ")}</span>
           </div>

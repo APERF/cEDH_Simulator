@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import type { Player, HandCard } from "../../types/game";
+import type { Player, HandCard, CommanderCard } from "../../types/game";
 
 interface Props {
   player: Player;
   isActive: boolean;
+  onCastCommander: (cardId: string) => void;
 }
 
-function CardPreviewPortal({ card, anchor }: { card: HandCard; anchor: DOMRect }) {
+function CardPreviewPortal({ card, anchor }: { card: HandCard | CommanderCard; anchor: DOMRect }) {
   const style: React.CSSProperties = {
     position: "fixed",
     left: anchor.left + anchor.width / 2,
@@ -25,9 +26,10 @@ function CardPreviewPortal({ card, anchor }: { card: HandCard; anchor: DOMRect }
   );
 }
 
-export function PlayerPanel({ player, isActive }: Props) {
-  const [hovered, setHovered] = useState<{ card: HandCard; rect: DOMRect } | null>(null);
+export function PlayerPanel({ player, isActive, onCastCommander }: Props) {
+  const [hovered, setHovered] = useState<{ card: HandCard | CommanderCard; rect: DOMRect } | null>(null);
   const cmdDamage = Object.entries(player.commander_damage).filter(([, dmg]) => dmg > 0);
+  const commandZoneCommanders = (player.commanders ?? []).filter((c) => c.in_command_zone);
 
   return (
     <div className={`player-panel ${isActive ? "active" : ""} ${player.is_human ? "human" : "ai"}`}>
@@ -52,6 +54,45 @@ export function PlayerPanel({ player, isActive }: Props) {
         </div>
       </div>
 
+      {/* Command Zone */}
+      {commandZoneCommanders.length > 0 && (
+        <div className="pp-command-zone">
+          <div className="pp-cz-label">Command Zone</div>
+          <div className="pp-cz-commanders">
+            {commandZoneCommanders.map((cmd) => (
+              <div key={cmd.id} className="cz-commander">
+                {cmd.image_uri ? (
+                  <img
+                    src={cmd.image_uri}
+                    alt={cmd.name}
+                    className="cz-card-img"
+                    onMouseEnter={(e) =>
+                      setHovered({ card: cmd, rect: e.currentTarget.getBoundingClientRect() })
+                    }
+                    onMouseLeave={() => setHovered(null)}
+                  />
+                ) : (
+                  <div className="cz-card-placeholder">{cmd.name}</div>
+                )}
+                {cmd.commander_tax > 0 && (
+                  <div className="cz-tax">+{cmd.commander_tax}</div>
+                )}
+                {player.is_human && (
+                  <button
+                    className="cz-cast-btn"
+                    onClick={() => onCastCommander(cmd.id)}
+                    title={`Cast ${cmd.name}${cmd.commander_tax > 0 ? ` (+${cmd.commander_tax} tax)` : ""}`}
+                  >
+                    Cast
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Hand (human only) */}
       {player.is_human && (player.hand ?? []).length > 0 && (
         <div className="pp-hand">
           <div className="pp-hand-label">Hand ({player.hand.length})</div>
@@ -76,7 +117,9 @@ export function PlayerPanel({ player, isActive }: Props) {
         </div>
       )}
 
-      {hovered && <CardPreviewPortal card={hovered.card} anchor={hovered.rect} />}
+      {hovered && hovered.card.image_uri && (
+        <CardPreviewPortal card={hovered.card} anchor={hovered.rect} />
+      )}
 
       {cmdDamage.length > 0 && (
         <div className="pp-cmd-damage">

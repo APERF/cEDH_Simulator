@@ -42,6 +42,15 @@ export interface HandCard {
   image_uri: string | null;
 }
 
+export interface CommanderCard {
+  id: string;
+  name: string;
+  image_uri: string | null;
+  cast_count: number;
+  commander_tax: number;
+  in_command_zone: boolean;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -52,6 +61,7 @@ export interface Player {
   hand_size: number;
   battlefield_count: number;
   hand: HandCard[];
+  commanders: CommanderCard[];
 }
 
 export interface GameState {
@@ -82,7 +92,8 @@ export type ActionType =
   | "activate_ability"
   | "pass_priority"
   | "declare_attacker"
-  | "play_land";
+  | "play_land"
+  | "cast_commander";
 
 export interface GameAction {
   type: ActionType;

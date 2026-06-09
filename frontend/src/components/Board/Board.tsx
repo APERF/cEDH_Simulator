@@ -1,11 +1,24 @@
 import { useGameStore } from "../../store/gameStore";
 import { PlayerPanel } from "./PlayerPanel";
+import { sendAction, getGameState } from "../../services/api";
 
 export function Board() {
-  const { gameState } = useGameStore();
+  const { gameState, gameId, setGameState, setLoading, appendLog } = useGameStore();
 
   if (!gameState) {
     return <div className="board-empty">No active game.</div>;
+  }
+
+  async function handleCastCommander(cardId: string) {
+    if (!gameId) return;
+    setLoading(true);
+    try {
+      const result = await sendAction(gameId, { type: "cast_commander", card_id: cardId });
+      appendLog(result.log);
+      setGameState(await getGameState(gameId));
+    } finally {
+      setLoading(false);
+    }
   }
 
   // Players arrive in turn order (index 0 = first seat).
@@ -18,7 +31,12 @@ export function Board() {
     <div className="commander-table">
       {seats.map((p, i) =>
         p ? (
-          <PlayerPanel key={p.id} player={p} isActive={p.id === gameState.active_player_id} />
+          <PlayerPanel
+            key={p.id}
+            player={p}
+            isActive={p.id === gameState.active_player_id}
+            onCastCommander={handleCastCommander}
+          />
         ) : (
           <div key={i} className="seat-empty" />
         )

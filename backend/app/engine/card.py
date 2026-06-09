@@ -20,6 +20,8 @@ class Card:
     scryfall_id: Optional[str] = None
     image_uri: Optional[str] = None
 
+    is_commander: bool = False
+
     # runtime state
     zone: Zone = Zone.LIBRARY
     tapped: bool = False

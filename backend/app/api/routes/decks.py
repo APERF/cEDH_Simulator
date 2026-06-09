@@ -21,8 +21,13 @@ def _extract_moxfield_id(url: str) -> str | None:
 def _format_moxfield_decklist(data: dict) -> tuple[str, str]:
     name = data.get("name", "Imported Deck")
     lines: list[str] = []
-    for entry in data.get("commanders", {}).values():
-        lines.append(f"{entry['quantity']} {entry['card']['name']}")
+    commanders = data.get("commanders", {})
+    if commanders:
+        lines.append("Commander")
+        for entry in commanders.values():
+            lines.append(f"{entry['quantity']} {entry['card']['name']}")
+        lines.append("")
+    lines.append("Deck")
     for entry in data.get("mainboard", {}).values():
         lines.append(f"{entry['quantity']} {entry['card']['name']}")
     return name, "\n".join(lines)

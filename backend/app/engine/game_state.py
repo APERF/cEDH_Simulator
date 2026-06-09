@@ -3,8 +3,30 @@ import uuid
 from typing import Optional
 from app.engine.player import Player
 from app.engine.stack import Stack
-from app.models.schemas import Phase, Step
+from app.models.schemas import Phase, Step, Zone
 from app.engine.win_conditions import check_win_conditions
+
+_STEP_SEQUENCE = [
+    Step.UNTAP, Step.UPKEEP, Step.DRAW, Step.PRECOMBAT_MAIN,
+    Step.BEGIN_COMBAT, Step.DECLARE_ATTACKERS, Step.DECLARE_BLOCKERS,
+    Step.COMBAT_DAMAGE, Step.END_OF_COMBAT, Step.POSTCOMBAT_MAIN,
+    Step.END, Step.CLEANUP,
+]
+
+_STEP_TO_PHASE = {
+    Step.UNTAP: Phase.BEGINNING,
+    Step.UPKEEP: Phase.BEGINNING,
+    Step.DRAW: Phase.BEGINNING,
+    Step.PRECOMBAT_MAIN: Phase.PRECOMBAT_MAIN,
+    Step.BEGIN_COMBAT: Phase.COMBAT,
+    Step.DECLARE_ATTACKERS: Phase.COMBAT,
+    Step.DECLARE_BLOCKERS: Phase.COMBAT,
+    Step.COMBAT_DAMAGE: Phase.COMBAT,
+    Step.END_OF_COMBAT: Phase.COMBAT,
+    Step.POSTCOMBAT_MAIN: Phase.POSTCOMBAT_MAIN,
+    Step.END: Phase.ENDING,
+    Step.CLEANUP: Phase.ENDING,
+}
 
 
 class GameState:
@@ -31,6 +53,44 @@ class GameState:
 
     def get_opponents(self, player_id: str) -> list[Player]:
         return [p for p in self.players if p.id != player_id]
+
+    def advance_step(self) -> None:
+        if self.winner:
+            return
+        self._process_current_step()
+        idx = _STEP_SEQUENCE.index(self.step)
+        if idx == len(_STEP_SEQUENCE) - 1:
+            self.turn_order_index += 1
+            self.turn += 1
+            self.step = Step.UNTAP
+            self.phase = Phase.BEGINNING
+            self.log(f"--- Turn {self.turn}: {self.active_player.name} ---")
+        else:
+            self.step = _STEP_SEQUENCE[idx + 1]
+            self.phase = _STEP_TO_PHASE[self.step]
+        self.check_state_based_actions()
+
+    def _process_current_step(self) -> None:
+        player = self.active_player
+        if self.step == Step.UNTAP:
+            player.land_played_this_turn = False
+            player.mana_pool.empty()
+            for p in self.players:
+                p.battlefield.untap_all(player.id)
+            count = len(player.battlefield)
+            if count:
+                self.log(f"{player.name} untaps {count} permanent(s)")
+        elif self.step == Step.DRAW:
+            drawn = player.draw(1)
+            if drawn:
+                self.log(f"{player.name} draws a card")
+        elif self.step == Step.CLEANUP:
+            player.mana_pool.empty()
+            while len(player.hand) > 7:
+                card = player.hand._cards.pop()
+                card.zone = Zone.GRAVEYARD
+                player.graveyard.add(card)
+                self.log(f"{player.name} discards {card.name}")
 
     def advance_turn(self) -> None:
         self.active_player.mana_pool.empty()
@@ -81,6 +141,17 @@ class GameState:
                         {"id": c.id, "name": c.name, "image_uri": c.image_uri}
                         for c in p.hand.cards
                     ] if p.is_human else [],
+                    "commanders": [
+                        {
+                            "id": c.id,
+                            "name": c.name,
+                            "image_uri": c.image_uri,
+                            "cast_count": p.command_zone.cast_count(c.id),
+                            "commander_tax": p.command_zone.commander_tax(c.id),
+                            "in_command_zone": c.zone == Zone.COMMAND,
+                        }
+                        for c in p.command_zone.commanders
+                    ],
                 }
                 for i, p in enumerate(self.players)
             ],
