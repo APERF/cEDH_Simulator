@@ -92,6 +92,16 @@ class GameState:
                 player.graveyard.add(card)
                 self.log(f"{player.name} discards {card.name}")
 
+    def advance_ai_turns_until_human(self, human_player_id: str, max_steps: int = 200) -> None:
+        steps = 0
+        while (
+            self.active_player.id != human_player_id
+            and not self.winner
+            and steps < max_steps
+        ):
+            self.advance_step()
+            steps += 1
+
     def advance_turn(self) -> None:
         self.active_player.mana_pool.empty()
         self.active_player.land_played_this_turn = False

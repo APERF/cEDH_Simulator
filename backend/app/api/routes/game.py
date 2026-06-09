@@ -198,6 +198,8 @@ async def player_action(game_id: str, action: dict):
     action_type = action.get("type")
 
     if action_type == "pass_priority":
+        if not gs.active_player.is_human:
+            return {"status": "ok", "log": []}
         log_before = len(gs.game_log)
         gs.advance_step()
         return {"status": "ok", "log": gs.game_log[log_before:]}
@@ -234,4 +236,10 @@ async def player_action(game_id: str, action: dict):
 async def ai_turn(game_id: str):
     if game_id not in _sessions:
         raise HTTPException(status_code=404, detail="Game not found")
-    return {"status": "ok", "log": []}
+    gs = _sessions[game_id]
+    human = next((p for p in gs.players if p.is_human), None)
+    if not human:
+        return {"status": "ok", "log": []}
+    log_before = len(gs.game_log)
+    gs.advance_ai_turns_until_human(human.id)
+    return {"status": "ok", "log": gs.game_log[log_before:]}

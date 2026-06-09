@@ -323,27 +323,80 @@
 .phase-bar {
   display: flex;
   align-items: center;
-  height: 42px;
-  padding: 0 20px;
+  height: 46px;
+  padding: 0 16px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  gap: 8px;
+}
+
+.pb-left {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.pb-right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .pb-item {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 0 16px;
+  gap: 6px;
+  padding: 0 12px;
   border-right: 1px solid var(--border);
   height: 100%;
 }
 
-.pb-item:first-child { padding-left: 0; }
+.pb-left .pb-item:first-child { padding-left: 0; }
+.pb-right .pb-item:last-child { border-right: none; padding-right: 0; }
 
 .pb-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-dim); }
 .pb-value { font-size: 13px; font-weight: 600; color: var(--text-h); text-transform: capitalize; }
-.pb-winner { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--green); }
+.pb-active-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-winner { font-size: 12px; font-weight: 700; color: var(--green); padding-left: 12px; }
+
+/* ── Step Progression ── */
+.pb-steps {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  justify-content: center;
+}
+
+.pb-step {
+  font: 700 9px/1 var(--mono);
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+  padding: 3px 5px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+  cursor: default;
+  user-select: none;
+}
+
+.pb-step.active {
+  color: var(--gold);
+  background: var(--gold-dim);
+  border-color: var(--gold-border);
+}
+
+.pb-step.past { opacity: 0.35; }
+
+.pb-phase-sep {
+  width: 1px;
+  height: 13px;
+  background: var(--border-hi);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
 
 /* ── Game Main ── */
 .game-main {
