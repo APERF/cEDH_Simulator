@@ -1,6 +1,7 @@
 from __future__ import annotations
 import httpx
 from functools import lru_cache
+from app.engine.mana_ability import classify_land
 
 SCRYFALL_BASE = "https://api.scryfall.com"
 _cache: dict[str, dict] = {}
@@ -82,6 +83,8 @@ def apply_cached_data(cards: list) -> None:
         card.keywords = data.get("keywords", card.keywords)
         card.power = data.get("power", card.power)
         card.toughness = data.get("toughness", card.toughness)
+        if card.is_land:
+            card.mana_ability = classify_land(card.type_line, card.oracle_text)
 
 
 async def fetch_card_by_id(scryfall_id: str) -> dict | None:

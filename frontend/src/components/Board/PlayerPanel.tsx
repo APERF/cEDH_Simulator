@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import type { Player, HandCard, CommanderCard, LandCard, Step } from "../../types/game";
+import type { Player, HandCard, CommanderCard, LandCard, ManaPool, Step } from "../../types/game";
+import { canAfford } from "../../utils/mana";
 
 interface Props {
   player: Player;
@@ -8,7 +9,67 @@ interface Props {
   isHumanTurn: boolean;
   currentStep: Step;
   onCastCommander: (cardId: string) => void;
-  onPlayCard: (cardId: string, actionType: "play_land" | "cast_spell") => void;
+  onPlayCard: (cardId: string, actionType: "play_land" | "cast_spell", opts?: { payLife?: boolean }) => void;
+  onTapLand: (cardId: string, color?: string, untap?: boolean) => void;
+}
+
+const MANA_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
+
+function ManaPoolDisplay({ pool }: { pool: ManaPool }) {
+  const pips: string[] = [];
+  for (const color of MANA_COLORS) {
+    for (let i = 0; i < pool[color]; i++) pips.push(color);
+  }
+  return (
+    <div className="pp-mana-pool">
+      <span className="mp-label">Pool</span>
+      {pips.length === 0 ? (
+        <span className="mp-empty">—</span>
+      ) : (
+        <div className="mp-pips">
+          {pips.map((c, i) => <span key={i} className={`pip pip-${c}`} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ColorPickerPortal({ produces, anchor, onSelect, onClose }: {
+  produces: string[];
+  anchor: DOMRect;
+  onSelect: (color: string) => void;
+  onClose: () => void;
+}) {
+  return createPortal(
+    <>
+      <div style={{ position: "fixed", inset: 0, zIndex: 9997 }} onClick={onClose} />
+      <div
+        className="mana-picker"
+        style={{
+          position: "fixed",
+          left: anchor.left + anchor.width / 2,
+          top: anchor.bottom + 8,
+          transform: "translateX(-50%)",
+          zIndex: 9998,
+        }}
+      >
+        <div className="mp-picker-label">Tap for:</div>
+        <div className="mp-picker-colors">
+          {produces.map(color => (
+            <button
+              key={color}
+              className={`mp-color-btn pip-${color}`}
+              onClick={(e) => { e.stopPropagation(); onSelect(color); }}
+              title={color}
+            >
+              {color}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>,
+    document.body
+  );
 }
 
 function CardPreviewPortal({ card, anchor }: { card: HandCard | CommanderCard | LandCard; anchor: DOMRect }) {
@@ -29,9 +90,49 @@ function CardPreviewPortal({ card, anchor }: { card: HandCard | CommanderCard | 
   );
 }
 
-export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCastCommander, onPlayCard }: Props) {
+function ShockModal({ landName, playerLife, onPayLife, onEnterTapped, onClose }: {
+  landName: string;
+  playerLife: number;
+  onPayLife: () => void;
+  onEnterTapped: () => void;
+  onClose: () => void;
+}) {
+  return createPortal(
+    <>
+      <div style={{ position: "fixed", inset: 0, zIndex: 9997, background: "rgba(0,0,0,0.55)" }} onClick={onClose} />
+      <div className="shock-modal" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 9998 }}>
+        <div className="shock-title">{landName}</div>
+        <div className="shock-sub">As this enters, you may pay 2 life.</div>
+        <div className="shock-life">{playerLife} → {playerLife - 2} life</div>
+        <div className="shock-actions">
+          <button className="primary" onClick={onPayLife}>Pay 2 Life — Enter Untapped</button>
+          <button onClick={onEnterTapped}>Enter Tapped</button>
+        </div>
+      </div>
+    </>,
+    document.body
+  );
+}
+
+export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCastCommander, onPlayCard, onTapLand }: Props) {
   const [hovered, setHovered] = useState<{ card: HandCard | CommanderCard | LandCard; rect: DOMRect } | null>(null);
+  const [colorPicker, setColorPicker] = useState<{ landId: string; produces: string[]; anchor: DOMRect } | null>(null);
+  const [shockPrompt, setShockPrompt] = useState<{ cardId: string; name: string } | null>(null);
   const isMainPhase = currentStep === "precombat_main" || currentStep === "postcombat_main";
+
+  function handleLandClick(land: LandCard, e: React.MouseEvent<HTMLDivElement>) {
+    if (!player.is_human || !isHumanTurn) return;
+    if (land.tapped) {
+      onTapLand(land.id, undefined, true);
+      return;
+    }
+    const ma = land.mana_ability;
+    if (ma && ma.produces.length > 1) {
+      setColorPicker({ landId: land.id, produces: ma.produces, anchor: e.currentTarget.getBoundingClientRect() });
+    } else {
+      onTapLand(land.id, ma?.produces[0]);
+    }
+  }
   const cmdDamage = Object.entries(player.commander_damage).filter(([, dmg]) => dmg > 0);
   const commandZoneCommanders = (player.commanders ?? []).filter((c) => c.in_command_zone);
 
@@ -62,6 +163,10 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
         </div>
       )}
 
+      {player.is_human && player.mana_pool != null && (
+        <ManaPoolDisplay pool={player.mana_pool} />
+      )}
+
       {/* Main zone layout: Command Zone | Battlefield | Library/GY/Exile */}
       <div className="pp-body">
         <div className="pp-command-zone">
@@ -88,15 +193,22 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
                   {cmd.commander_tax > 0 && (
                     <div className="cz-tax">+{cmd.commander_tax}</div>
                   )}
-                  {player.is_human && (
-                    <button
-                      className="cz-cast-btn"
-                      onClick={() => onCastCommander(cmd.id)}
-                      title={`Cast ${cmd.name}${cmd.commander_tax > 0 ? ` (+${cmd.commander_tax} tax)` : ""}`}
-                    >
-                      Cast
-                    </button>
-                  )}
+                  {player.is_human && (() => {
+                    const cmdAffordable = canAfford(cmd.mana_cost, player.mana_pool, cmd.commander_tax);
+                    return (
+                      <button
+                        className={`cz-cast-btn${cmdAffordable ? "" : " disabled"}`}
+                        onClick={() => cmdAffordable && onCastCommander(cmd.id)}
+                        title={
+                          cmdAffordable
+                            ? `Cast ${cmd.name}${cmd.commander_tax > 0 ? ` (+${cmd.commander_tax} tax)` : ""}`
+                            : `Need ${cmd.mana_cost ?? ""}${cmd.commander_tax > 0 ? ` +${cmd.commander_tax}` : ""} generic`
+                        }
+                      >
+                        Cast
+                      </button>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
@@ -121,23 +233,30 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
             <div className="bf-area">
               {(player.lands ?? []).length > 0 ? (
                 <div className="bf-lands-cards">
-                  {(player.lands ?? []).map((land: LandCard) => (
-                    <div key={land.id} className={`bf-land-card${land.tapped ? " tapped" : ""}`}>
-                      {land.image_uri ? (
-                        <img
-                          src={land.image_uri}
-                          alt={land.name}
-                          title={land.name}
-                          onMouseEnter={(e) =>
-                            setHovered({ card: land, rect: e.currentTarget.getBoundingClientRect() })
-                          }
-                          onMouseLeave={() => setHovered(null)}
-                        />
-                      ) : (
-                        <div className="bf-land-card-fallback">{land.name}</div>
-                      )}
-                    </div>
-                  ))}
+                  {(player.lands ?? []).map((land: LandCard) => {
+                    const canInteract = player.is_human && isHumanTurn;
+                    return (
+                      <div
+                        key={land.id}
+                        className={`bf-land-card${land.tapped ? " tapped" : ""}${canInteract && !land.tapped ? " tappable" : ""}${canInteract && land.tapped ? " untappable" : ""}`}
+                        onClick={(e) => handleLandClick(land, e)}
+                      >
+                        {land.image_uri ? (
+                          <img
+                            src={land.image_uri}
+                            alt={land.name}
+                            title={land.name}
+                            onMouseEnter={(e) =>
+                              setHovered({ card: land, rect: e.currentTarget.getBoundingClientRect() })
+                            }
+                            onMouseLeave={() => setHovered(null)}
+                          />
+                        ) : (
+                          <div className="bf-land-card-fallback">{land.name}</div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="bf-empty">Empty</div>
@@ -176,12 +295,20 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
           <div className="pp-hand-cards">
             {(player.hand ?? []).map((card) => {
               const isLand = card.type_line?.toLowerCase().includes("land");
-              const canAct = isHumanTurn && isMainPhase && (isLand ? !player.land_played_this_turn : true);
+              const affordable = isLand || canAfford(card.mana_cost, player.mana_pool ?? undefined);
+              const canAct = isHumanTurn && isMainPhase && (isLand ? !player.land_played_this_turn : affordable);
               return (
                 <div
                   key={card.id}
                   className={`hand-card-wrap${canAct ? " playable" : ""}`}
-                  onClick={() => canAct && onPlayCard(card.id, isLand ? "play_land" : "cast_spell")}
+                  onClick={() => {
+                    if (!canAct) return;
+                    if (isLand && card.entry_condition === "pay_life:2") {
+                      setShockPrompt({ cardId: card.id, name: card.name });
+                    } else {
+                      onPlayCard(card.id, isLand ? "play_land" : "cast_spell");
+                    }
+                  }}
                   onMouseEnter={(e) => setHovered({ card, rect: e.currentTarget.getBoundingClientRect() })}
                   onMouseLeave={() => setHovered(null)}
                 >
@@ -215,6 +342,34 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
 
       {hovered && hovered.card.image_uri && (
         <CardPreviewPortal card={hovered.card} anchor={hovered.rect} />
+      )}
+
+      {colorPicker && (
+        <ColorPickerPortal
+          produces={colorPicker.produces}
+          anchor={colorPicker.anchor}
+          onSelect={(color) => {
+            onTapLand(colorPicker.landId, color);
+            setColorPicker(null);
+          }}
+          onClose={() => setColorPicker(null)}
+        />
+      )}
+
+      {shockPrompt && (
+        <ShockModal
+          landName={shockPrompt.name}
+          playerLife={player.life_total}
+          onPayLife={() => {
+            onPlayCard(shockPrompt.cardId, "play_land", { payLife: true });
+            setShockPrompt(null);
+          }}
+          onEnterTapped={() => {
+            onPlayCard(shockPrompt.cardId, "play_land", { payLife: false });
+            setShockPrompt(null);
+          }}
+          onClose={() => setShockPrompt(null)}
+        />
       )}
     </div>
   );

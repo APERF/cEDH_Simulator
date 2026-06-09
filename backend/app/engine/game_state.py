@@ -148,12 +148,30 @@ class GameState:
                     "hand_size": len(p.hand),
                     "battlefield_count": len(p.battlefield),
                     "land_count": sum(1 for c in p.battlefield.permanents if c.is_land),
+                    "mana_pool": {
+                        "W": p.mana_pool.W,
+                        "U": p.mana_pool.U,
+                        "B": p.mana_pool.B,
+                        "R": p.mana_pool.R,
+                        "G": p.mana_pool.G,
+                        "C": p.mana_pool.C,
+                    },
                     "lands": [
                         {
                             "id": c.id,
                             "name": c.name,
                             "image_uri": c.image_uri,
                             "tapped": c.tapped,
+                            "tapped_for": c.tapped_for,
+                            "mana_ability": (
+                                {
+                                    "type": c.mana_ability.type,
+                                    "produces": c.mana_ability.produces,
+                                    "etbt": c.mana_ability.etbt,
+                                    "condition": c.mana_ability.condition,
+                                }
+                                if c.mana_ability else None
+                            ),
                         }
                         for c in p.battlefield.permanents if c.is_land
                     ],
@@ -169,6 +187,12 @@ class GameState:
                             "image_uri": c.image_uri,
                             "type_line": c.type_line,
                             "mana_cost": c.mana_cost,
+                            "entry_condition": (
+                                c.mana_ability.condition if c.is_land and c.mana_ability else None
+                            ),
+                            "land_type": (
+                                c.mana_ability.type if c.is_land and c.mana_ability else None
+                            ),
                         }
                         for c in p.hand.cards
                     ] if p.is_human else [],
@@ -177,6 +201,7 @@ class GameState:
                             "id": c.id,
                             "name": c.name,
                             "image_uri": c.image_uri,
+                            "mana_cost": c.mana_cost,
                             "cast_count": p.command_zone.cast_count(c.id),
                             "commander_tax": p.command_zone.commander_tax(c.id),
                             "in_command_zone": c.zone == Zone.COMMAND,

@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 from app.models.schemas import CardType, Zone
+from app.engine.mana_ability import ManaAbility
 
 
 @dataclass
@@ -21,10 +22,12 @@ class Card:
     image_uri: Optional[str] = None
 
     is_commander: bool = False
+    mana_ability: Optional[ManaAbility] = None  # set after Scryfall enrichment for lands
 
     # runtime state
     zone: Zone = Zone.LIBRARY
     tapped: bool = False
+    tapped_for: Optional[str] = None  # color added to pool when tapped
     counters: dict[str, int] = field(default_factory=dict)
     owner_id: str = ""
     controller_id: str = ""

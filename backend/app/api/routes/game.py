@@ -1,6 +1,7 @@
 import uuid as uuid_lib
 import json
 import os
+import re
 import random
 from fastapi import APIRouter, HTTPException
 from app.models.schemas import NewGameRequest, Zone, Step
@@ -9,8 +10,31 @@ from app.engine.player import Player
 from app.engine.game_state import GameState
 from app.decks.parser import parse_decklist, extract_commanders
 from app.cards.scryfall import fetch_collection_images, apply_cached_data
+from app.engine.mana_cost import parse_cost, can_pay, pay
+from app.engine.mana_ability import parse_fetch_targets
 
 router = APIRouter()
+
+
+def _evaluate_check_land(oracle_text: str, player: Player) -> bool:
+    """Return True if a check/fast land can enter the battlefield untapped."""
+    oracle = (oracle_text or "").lower()
+
+    # Fast lands: "unless you control two or fewer other lands"
+    if "two or fewer" in oracle:
+        land_count = sum(1 for c in player.battlefield.permanents if c.is_land)
+        return land_count <= 2
+
+    # Check lands: "unless you control a Forest or Plains"
+    m = re.search(r"unless you control a (\w+) or (\w+)", oracle)
+    if m:
+        t1, t2 = m.group(1).capitalize(), m.group(2).capitalize()
+        return any(
+            c.is_land and (t1 in (c.type_line or "") or t2 in (c.type_line or ""))
+            for c in player.battlefield.permanents
+        )
+
+    return False  # conservative: enter tapped
 
 _sessions: dict[str, GameState] = {}  # noqa
 
@@ -221,6 +245,15 @@ async def player_action(game_id: str, action: dict):
             raise HTTPException(status_code=400, detail="Commander is not in command zone")
 
         tax = human.command_zone.commander_tax(card_id)
+        cost = parse_cost(commander.mana_cost or "")
+        if not can_pay(human.mana_pool, cost, extra_generic=tax):
+            cost_str = commander.mana_cost or "free"
+            tax_str = f" +{tax}" if tax else ""
+            raise HTTPException(
+                status_code=400,
+                detail=f"Not enough mana (need {cost_str}{tax_str} generic)",
+            )
+        pay(human.mana_pool, cost, extra_generic=tax)
         commander.zone = Zone.BATTLEFIELD
         human.battlefield.add(commander)
         human.command_zone.increment_cast(card_id)
@@ -247,11 +280,74 @@ async def player_action(game_id: str, action: dict):
         if not card.is_land:
             human.hand.add(card)
             raise HTTPException(status_code=400, detail="Card is not a land")
-        card.zone = Zone.BATTLEFIELD
-        card.tapped = False
-        human.battlefield.add(card)
+
         human.land_played_this_turn = True
+        ma = card.mana_ability
+
+        # ── Fetch land ──────────────────────────────────────────────────────────
+        if ma and ma.type == "fetch":
+            card.zone = Zone.GRAVEYARD
+            human.graveyard.add(card)
+            valid_types = parse_fetch_targets(card.oracle_text or "")
+            fetch_options = [
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "image_uri": c.image_uri,
+                    "type_line": c.type_line,
+                }
+                for c in human.library._cards
+                if c.is_land and (
+                    not valid_types
+                    or any(t in (c.type_line or "") for t in valid_types)
+                )
+            ]
+            msg = f"{human.name} cracks {card.name}"
+            gs.log(msg)
+            return {"status": "fetch", "log": [msg], "fetch_options": fetch_options}
+
+        # ── Shock land ───────────────────────────────────────────────────────────
+        if ma and ma.condition == "pay_life:2":
+            pay_life = action.get("pay_life", False)
+            if pay_life:
+                human.take_damage(2)
+                card.tapped = False
+            else:
+                card.tapped = True
+
+        # ── Check / fast land ────────────────────────────────────────────────────
+        elif ma and ma.condition == "check":
+            card.tapped = not _evaluate_check_land(card.oracle_text or "", human)
+
+        # ── Normal land ──────────────────────────────────────────────────────────
+        else:
+            card.tapped = False
+
+        card.zone = Zone.BATTLEFIELD
+        human.battlefield.add(card)
         msg = f"{human.name} plays {card.name}"
+        gs.log(msg)
+        return {"status": "ok", "log": [msg]}
+
+    if action_type == "complete_fetch":
+        card_id = action.get("card_id")
+        human = next((p for p in gs.players if p.is_human), None)
+        if not human:
+            raise HTTPException(status_code=400, detail="No human player found")
+
+        land = next((c for c in human.library._cards if c.id == card_id), None)
+        if not land:
+            raise HTTPException(status_code=400, detail="Land not found in library")
+        if not land.is_land:
+            raise HTTPException(status_code=400, detail="Not a land")
+
+        human.library._cards.remove(land)
+        land.zone = Zone.BATTLEFIELD
+        land.tapped = True  # fetched lands always enter tapped
+        human.battlefield.add(land)
+        human.library.shuffle()
+
+        msg = f"{human.name} fetches {land.name}"
         gs.log(msg)
         return {"status": "ok", "log": [msg]}
 
@@ -272,6 +368,14 @@ async def player_action(game_id: str, action: dict):
             if gs.step not in (Step.PRECOMBAT_MAIN, Step.POSTCOMBAT_MAIN):
                 human.hand.add(card)
                 raise HTTPException(status_code=400, detail="Can only cast sorcery-speed spells during main phase")
+        cost = parse_cost(card.mana_cost or "")
+        if not can_pay(human.mana_pool, cost):
+            human.hand.add(card)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Not enough mana (need {card.mana_cost or 'free'})",
+            )
+        pay(human.mana_pool, cost)
         is_permanent = card.is_creature or card.is_artifact or card.is_enchantment or "Planeswalker" in card.type_line
         if is_permanent:
             card.zone = Zone.BATTLEFIELD
@@ -281,6 +385,75 @@ async def player_action(game_id: str, action: dict):
             card.zone = Zone.GRAVEYARD
             human.graveyard.add(card)
         msg = f"{human.name} casts {card.name}"
+        gs.log(msg)
+        return {"status": "ok", "log": [msg]}
+
+    if action_type == "tap_land":
+        card_id = action.get("card_id")
+        color = action.get("color")
+        human = next((p for p in gs.players if p.is_human), None)
+        if not human:
+            raise HTTPException(status_code=400, detail="No human player found")
+        if gs.active_player.id != human.id:
+            raise HTTPException(status_code=400, detail="Not your turn")
+
+        land = next((c for c in human.battlefield.permanents if c.id == card_id), None)
+        if not land:
+            raise HTTPException(status_code=400, detail="Land not found on battlefield")
+        if land.tapped:
+            raise HTTPException(status_code=400, detail="Land is already tapped")
+        if not land.is_land:
+            raise HTTPException(status_code=400, detail="Card is not a land")
+
+        land.tapped = True
+        land.tapped_for = None
+
+        ma = land.mana_ability
+        if ma and ma.type == "fetch":
+            msg = f"{human.name} activates {land.name}"
+        elif ma and ma.produces:
+            if len(ma.produces) == 1:
+                chosen = ma.produces[0]
+                human.mana_pool.add(chosen)
+                land.tapped_for = chosen
+                msg = f"{human.name} taps {land.name} for {{{chosen}}}"
+            else:
+                if not color or color not in ma.produces:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Must specify color from {ma.produces}",
+                    )
+                human.mana_pool.add(color)
+                land.tapped_for = color
+                msg = f"{human.name} taps {land.name} for {{{color}}}"
+        else:
+            msg = f"{human.name} taps {land.name}"
+
+        gs.log(msg)
+        return {"status": "ok", "log": [msg]}
+
+    if action_type == "untap_land":
+        card_id = action.get("card_id")
+        human = next((p for p in gs.players if p.is_human), None)
+        if not human:
+            raise HTTPException(status_code=400, detail="No human player found")
+        if gs.active_player.id != human.id:
+            raise HTTPException(status_code=400, detail="Not your turn")
+
+        land = next((c for c in human.battlefield.permanents if c.id == card_id), None)
+        if not land:
+            raise HTTPException(status_code=400, detail="Land not found on battlefield")
+        if not land.tapped:
+            raise HTTPException(status_code=400, detail="Land is not tapped")
+
+        land.tapped = False
+        if land.tapped_for:
+            human.mana_pool.spend(land.tapped_for)
+            msg = f"{human.name} untaps {land.name}, removing {{{land.tapped_for}}} from pool"
+        else:
+            msg = f"{human.name} untaps {land.name}"
+        land.tapped_for = None
+
         gs.log(msg)
         return {"status": "ok", "log": [msg]}
 

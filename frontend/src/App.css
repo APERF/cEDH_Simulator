@@ -659,6 +659,16 @@
   color: var(--bg);
 }
 
+.cz-cast-btn.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.cz-cast-btn.disabled:hover {
+  background: rgba(201, 165, 90, 0.12);
+  color: var(--gold-light);
+}
+
 /* Battlefield column */
 .pp-battlefield {
   display: flex;
@@ -741,6 +751,26 @@
   margin: 8px 4px;
 }
 
+.bf-land-card.tappable {
+  cursor: pointer;
+}
+
+.bf-land-card.tappable:hover img {
+  outline: 2px solid var(--gold-border);
+  border-radius: 3px;
+  filter: brightness(1.12);
+}
+
+.bf-land-card.untappable {
+  cursor: pointer;
+}
+
+.bf-land-card.untappable:hover img {
+  outline: 2px solid rgba(180, 100, 100, 0.7);
+  border-radius: 3px;
+  filter: brightness(1.08);
+}
+
 .bf-land-card-fallback {
   width: 40px;
   height: 56px;
@@ -819,6 +849,89 @@
   opacity: 0.4;
   line-height: 1;
 }
+
+/* ── Mana Pool ── */
+.pp-mana-pool {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  background: rgba(201, 165, 90, 0.04);
+  border: 1px solid rgba(201, 165, 90, 0.14);
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+
+.mp-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.mp-pips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.mp-empty {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* ── Mana Color Picker ── */
+.mana-picker {
+  background: var(--panel);
+  border: 1px solid var(--border-hi);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+}
+
+.mp-picker-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.mp-picker-colors {
+  display: flex;
+  gap: 5px;
+}
+
+.mp-color-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.2);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.mp-color-btn:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 8px rgba(255,255,255,0.3);
+}
+
+.mp-color-btn.pip-W { background: var(--pip-w); color: #333; }
+.mp-color-btn.pip-U { background: var(--pip-u); color: #fff; }
+.mp-color-btn.pip-B { background: var(--pip-b); color: #fff; border-color: rgba(255,255,255,0.35); }
+.mp-color-btn.pip-R { background: var(--pip-r); color: #fff; }
+.mp-color-btn.pip-G { background: var(--pip-g); color: #fff; }
+.mp-color-btn.pip-C { background: #5a5a72; color: #fff; }
 
 /* ── Hand (human) ── */
 .pp-hand {
@@ -1086,6 +1199,164 @@
 
 .log-entry:last-child { border-bottom: none; }
 .log-empty { font-size: 12px; color: var(--text-dim); font-style: italic; }
+
+/* ── Fetch Modal ── */
+.fetch-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fetch-modal {
+  background: var(--panel);
+  border: 1px solid var(--border-hi);
+  border-radius: 12px;
+  padding: 20px;
+  max-width: 720px;
+  width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.8);
+}
+
+.fetch-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fetch-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-h);
+}
+
+.fetch-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.fetch-close:hover { color: var(--text-h); }
+
+.fetch-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+
+.fetch-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 4px;
+  border: 2px solid transparent;
+  transition: border-color 0.15s, transform 0.1s;
+}
+
+.fetch-option:hover {
+  border-color: var(--gold-border);
+  transform: translateY(-2px);
+}
+
+.fetch-card-img {
+  width: 80px;
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+.fetch-card-fallback {
+  width: 80px;
+  height: 112px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 9px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 4px;
+}
+
+.fetch-card-name {
+  font-size: 9px;
+  color: var(--text);
+  text-align: center;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fetch-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+/* ── Shock Land Modal ── */
+.shock-modal {
+  background: var(--panel);
+  border: 1px solid var(--border-hi);
+  border-radius: 10px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 300px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.8);
+}
+
+.shock-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.shock-sub {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.shock-life {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--red);
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  border-radius: 5px;
+  padding: 6px 10px;
+}
+
+.shock-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.shock-actions button { width: 100%; }
 
 /* ── Board Empty ── */
 .board-empty {

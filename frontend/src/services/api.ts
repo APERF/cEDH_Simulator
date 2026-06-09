@@ -37,7 +37,7 @@ export async function mulliganAction(
 export async function sendAction(
   gameId: string,
   action: GameAction
-): Promise<{ status: string; log: string[] }> {
+): Promise<{ status: string; log: string[]; fetch_options?: import("../types/game").FetchOption[] }> {
   const { data } = await api.post(`/game/${gameId}/action`, action);
   return data;
 }

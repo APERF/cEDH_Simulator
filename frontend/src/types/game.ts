@@ -42,15 +42,32 @@ export interface HandCard {
   image_uri: string | null;
   type_line: string;
   mana_cost: string | null;
+  entry_condition: string | null;  // "pay_life:2" | "check" | null
+  land_type: string | null;        // "fetch" | "basic" | "dual" | etc.
+}
+
+export interface FetchOption {
+  id: string;
+  name: string;
+  image_uri: string | null;
+  type_line: string;
 }
 
 export interface CommanderCard {
   id: string;
   name: string;
   image_uri: string | null;
+  mana_cost: string | null;
   cast_count: number;
   commander_tax: number;
   in_command_zone: boolean;
+}
+
+export interface LandManaAbility {
+  type: string;
+  produces: string[];
+  etbt: boolean;
+  condition: string | null;
 }
 
 export interface LandCard {
@@ -58,6 +75,17 @@ export interface LandCard {
   name: string;
   image_uri: string | null;
   tapped: boolean;
+  tapped_for: string | null;
+  mana_ability: LandManaAbility | null;
+}
+
+export interface ManaPool {
+  W: number;
+  U: number;
+  B: number;
+  R: number;
+  G: number;
+  C: number;
 }
 
 export interface Player {
@@ -75,6 +103,7 @@ export interface Player {
   exile_count: number;
   poison_counters: number;
   land_played_this_turn: boolean;
+  mana_pool: ManaPool | undefined;
   hand: HandCard[];
   commanders: CommanderCard[];
   lands: LandCard[];
@@ -109,10 +138,15 @@ export type ActionType =
   | "pass_priority"
   | "declare_attacker"
   | "play_land"
-  | "cast_commander";
+  | "cast_commander"
+  | "tap_land"
+  | "untap_land"
+  | "complete_fetch";
 
 export interface GameAction {
   type: ActionType;
   card_id?: string;
   targets?: string[];
+  color?: string;
+  pay_life?: boolean;
 }
