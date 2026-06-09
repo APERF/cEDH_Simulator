@@ -72,6 +72,7 @@ class GameState:
                     "id": p.id,
                     "name": p.name,
                     "is_human": p.is_human,
+                    "seat": i + 1,
                     "life_total": p.life_total,
                     "commander_damage": p.commander_damage,
                     "hand_size": len(p.hand),
@@ -81,6 +82,6 @@ class GameState:
                         for c in p.hand.cards
                     ] if p.is_human else [],
                 }
-                for p in self.players
+                for i, p in enumerate(self.players)
             ],
         }

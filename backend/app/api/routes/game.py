@@ -1,6 +1,7 @@
 import uuid as uuid_lib
 import json
 import os
+import random
 from fastapi import APIRouter, HTTPException
 from app.models.schemas import NewGameRequest
 from app.engine.card import Card
@@ -87,6 +88,13 @@ async def new_game(request: NewGameRequest):
         ai.library.shuffle()
         ai.draw(7)
         players.append(ai)
+
+    random.shuffle(players)
+
+    if request.seat_preference is not None:
+        seat_idx = max(0, min(3, request.seat_preference - 1))
+        human_pos = next(i for i, p in enumerate(players) if p.is_human)
+        players.insert(seat_idx, players.pop(human_pos))
 
     gs = GameState(players)
     _sessions[gs.game_id] = gs

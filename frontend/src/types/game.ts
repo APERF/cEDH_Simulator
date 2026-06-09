@@ -46,6 +46,7 @@ export interface Player {
   id: string;
   name: string;
   is_human: boolean;
+  seat: number;
   life_total: number;
   commander_damage: Record<string, number>;
   hand_size: number;

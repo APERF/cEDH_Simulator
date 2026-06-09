@@ -93,3 +93,4 @@ class GameStateSchema(BaseModel):
 class NewGameRequest(BaseModel):
     player_decklist: DecklistInput
     opponent_commanders: list[str]  # list of commander names from top 15
+    seat_preference: Optional[int] = None  # 1-4; None = random

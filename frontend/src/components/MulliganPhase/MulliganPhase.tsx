@@ -64,7 +64,7 @@ export function MulliganPhase({ gameState, onStateChange }: Props) {
           {!isSelectingBottom && (
             <p className="mulligan-sub">
               {mulliganCount === 0
-                ? "Keep or take your free mulligan?"
+                ? `Keep or take your free mulligan? Your seat position is: ${["1st","2nd","3rd","4th"][human.seat - 1]} Seat`
                 : mulliganCount === 1
                 ? "Free mulligan taken — keep or mulligan again? Next costs 1 card on the bottom."
                 : `${mulliganCount} mulligans taken — keep costs ${needed} card${needed !== 1 ? "s" : ""} on the bottom.`}

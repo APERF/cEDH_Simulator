@@ -61,7 +61,7 @@
   grid-template-columns: 360px 1fr;
   gap: 20px;
   width: 100%;
-  align-items: start;
+  align-items: stretch;
 }
 
 .setup-panel {
@@ -145,6 +145,13 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1;
+}
+
+.deck-input textarea {
+  flex: 1;
+  min-height: 0;
+  resize: none;
 }
 
 .url-hint {
@@ -253,6 +260,40 @@
 .pip-R { background: var(--pip-r); }
 .pip-G { background: var(--pip-g); }
 .pip-C { background: #5a5a72; }
+
+/* ── Seat Selection ── */
+.seat-panel {
+  width: 100%;
+}
+
+.seat-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.seat-btn {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.seat-btn:hover {
+  border-color: var(--gold-border);
+  color: var(--text-h);
+}
+
+.seat-btn.active {
+  background: var(--gold-dim);
+  border-color: var(--gold-border);
+  color: var(--gold);
+}
 
 /* ── Start Bar ── */
 .start-bar {

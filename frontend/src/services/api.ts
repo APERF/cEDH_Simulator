@@ -6,11 +6,13 @@ const api = axios.create({ baseURL: "http://localhost:8000/api" });
 export async function createGame(
   playerName: string,
   decklist: string,
-  opponentCommanders: string[]
+  opponentCommanders: string[],
+  seatPreference?: number
 ): Promise<{ game_id: string }> {
   const { data } = await api.post("/game/new", {
     player_decklist: { name: playerName, decklist },
     opponent_commanders: opponentCommanders,
+    seat_preference: seatPreference ?? null,
   });
   return data;
 }

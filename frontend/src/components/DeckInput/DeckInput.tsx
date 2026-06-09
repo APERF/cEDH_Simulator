@@ -83,8 +83,7 @@ export function DeckInput({ onConfirm }: Props) {
       />
       <textarea
         placeholder={"Paste a Moxfield URL:\n  https://www.moxfield.com/decks/...\n\nOr paste a decklist (MTGO format):\n  1 Sol Ring\n  1 Command Tower\n  ..."}
-        rows={10}
-        value={input}
+value={input}
         onChange={(e) => {
           setInput(e.target.value);
           setValidation(null);

@@ -21,6 +21,8 @@ export function Home() {
   const [metaDecks, setMetaDecks] = useState<MetaDeck[]>([]);
   const [selectedOpponents, setSelectedOpponents] = useState<string[]>([]);
   const [playerDeck, setPlayerDeck] = useState<{ name: string; decklist: string } | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [seatPreference, setSeatPreference] = useState<number | null | undefined>(undefined);
   const { setGameId, setLoading, setError } = useGameStore();
   const navigate = useNavigate();
 
@@ -37,10 +39,11 @@ export function Home() {
   }
 
   async function startGame() {
-    if (!playerDeck || selectedOpponents.length !== 3) return;
+    if (!playerDeck || selectedOpponents.length !== 3 || starting) return;
+    setStarting(true);
     setLoading(true);
     try {
-      const { game_id } = await createGame(playerDeck.name, playerDeck.decklist, selectedOpponents);
+      const { game_id } = await createGame(playerDeck.name, playerDeck.decklist, selectedOpponents, seatPreference ?? undefined);
       setGameId(game_id);
       navigate(`/game/${game_id}`);
     } catch (e: any) {
@@ -50,7 +53,7 @@ export function Home() {
     }
   }
 
-  const ready = !!playerDeck && selectedOpponents.length === 3;
+  const ready = !!playerDeck && selectedOpponents.length === 3 && seatPreference !== undefined;
   const remaining = 3 - selectedOpponents.length;
 
   return (
@@ -112,6 +115,25 @@ export function Home() {
         </div>
       </div>
 
+      {/* Step 3 — Seat Selection */}
+      <div className="setup-panel seat-panel">
+        <div className="panel-title">
+          <span className="step-badge">3</span>
+          <span className="panel-title-text">Choose Your Seat</span>
+        </div>
+        <div className="seat-buttons">
+          {([null, 1, 2, 3, 4] as const).map((seat) => (
+            <button
+              key={seat ?? "random"}
+              className={`seat-btn${seatPreference === seat ? " active" : ""}`}
+              onClick={() => setSeatPreference(seat)}
+            >
+              {seat === null ? "Random" : `${seat === 1 ? "1st" : seat === 2 ? "2nd" : seat === 3 ? "3rd" : "4th"}`}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Start bar */}
       <div className="start-bar">
         <div className="start-status">
@@ -127,7 +149,7 @@ export function Home() {
             </span>
           )}
         </div>
-        <button className="primary" onClick={startGame} disabled={!ready}>
+        <button className="primary" onClick={startGame} disabled={!ready || starting}>
           Start Game →
         </button>
       </div>

@@ -8,16 +8,11 @@ export function Board() {
     return <div className="board-empty">No active game.</div>;
   }
 
-  const aiPlayers = gameState.players.filter((p) => !p.is_human);
-  const humanPlayer = gameState.players.find((p) => p.is_human);
-
-  // 2×2 Commander table: AI fills top-left, top-right, bottom-left; human is bottom-right
-  const seats = [
-    aiPlayers[0] ?? null,
-    aiPlayers[1] ?? null,
-    aiPlayers[2] ?? null,
-    humanPlayer ?? null,
-  ];
+  // Players arrive in turn order (index 0 = first seat).
+  // Clockwise from top-left in a 2×2 grid: TL→TR→BR→BL.
+  // CSS grid row-major order is TL→TR→BL→BR, so swap indices 2 and 3.
+  const [p0, p1, p2, p3] = gameState.players;
+  const seats = [p0 ?? null, p1 ?? null, p3 ?? null, p2 ?? null];
 
   return (
     <div className="commander-table">
