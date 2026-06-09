@@ -40,6 +40,8 @@ export interface HandCard {
   id: string;
   name: string;
   image_uri: string | null;
+  type_line: string;
+  mana_cost: string | null;
 }
 
 export interface CommanderCard {
@@ -60,6 +62,7 @@ export interface Player {
   commander_damage: Record<string, number>;
   hand_size: number;
   battlefield_count: number;
+  land_played_this_turn: boolean;
   hand: HandCard[];
   commanders: CommanderCard[];
 }

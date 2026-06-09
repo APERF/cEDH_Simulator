@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import type { Player, HandCard, CommanderCard } from "../../types/game";
+import type { Player, HandCard, CommanderCard, Step } from "../../types/game";
 
 interface Props {
   player: Player;
   isActive: boolean;
+  isHumanTurn: boolean;
+  currentStep: Step;
   onCastCommander: (cardId: string) => void;
+  onPlayCard: (cardId: string, actionType: "play_land" | "cast_spell") => void;
 }
 
 function CardPreviewPortal({ card, anchor }: { card: HandCard | CommanderCard; anchor: DOMRect }) {
@@ -26,8 +29,9 @@ function CardPreviewPortal({ card, anchor }: { card: HandCard | CommanderCard; a
   );
 }
 
-export function PlayerPanel({ player, isActive, onCastCommander }: Props) {
+export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCastCommander, onPlayCard }: Props) {
   const [hovered, setHovered] = useState<{ card: HandCard | CommanderCard; rect: DOMRect } | null>(null);
+  const isMainPhase = currentStep === "precombat_main" || currentStep === "postcombat_main";
   const cmdDamage = Object.entries(player.commander_damage).filter(([, dmg]) => dmg > 0);
   const commandZoneCommanders = (player.commanders ?? []).filter((c) => c.in_command_zone);
 
@@ -97,22 +101,27 @@ export function PlayerPanel({ player, isActive, onCastCommander }: Props) {
         <div className="pp-hand">
           <div className="pp-hand-label">Hand ({player.hand.length})</div>
           <div className="pp-hand-cards">
-            {(player.hand ?? []).map((card) =>
-              card.image_uri ? (
-                <img
+            {(player.hand ?? []).map((card) => {
+              const isLand = card.type_line?.toLowerCase().includes("land");
+              const canAct = isHumanTurn && isMainPhase && (isLand ? !player.land_played_this_turn : true);
+              const actionLabel = isLand ? "Play" : "Cast";
+              return (
+                <div
                   key={card.id}
-                  src={card.image_uri}
-                  alt={card.name}
-                  className="hand-card-img"
-                  onMouseEnter={(e) =>
-                    setHovered({ card, rect: e.currentTarget.getBoundingClientRect() })
-                  }
+                  className={`hand-card-wrap${canAct ? " playable" : ""}`}
+                  onClick={() => canAct && onPlayCard(card.id, isLand ? "play_land" : "cast_spell")}
+                  onMouseEnter={(e) => setHovered({ card, rect: e.currentTarget.getBoundingClientRect() })}
                   onMouseLeave={() => setHovered(null)}
-                />
-              ) : (
-                <div key={card.id} className="hand-card">{card.name}</div>
-              )
-            )}
+                >
+                  {card.image_uri ? (
+                    <img src={card.image_uri} alt={card.name} className="hand-card-img" />
+                  ) : (
+                    <div className="hand-card">{card.name}</div>
+                  )}
+                  {canAct && <div className="hand-card-action-label">{actionLabel}</div>}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

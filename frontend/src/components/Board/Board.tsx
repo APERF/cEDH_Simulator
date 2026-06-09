@@ -9,11 +9,27 @@ export function Board() {
     return <div className="board-empty">No active game.</div>;
   }
 
+  const isHumanTurn = !!gameState.players.find(
+    (p) => p.is_human && p.id === gameState.active_player_id
+  );
+
   async function handleCastCommander(cardId: string) {
     if (!gameId) return;
     setLoading(true);
     try {
       const result = await sendAction(gameId, { type: "cast_commander", card_id: cardId });
+      appendLog(result.log);
+      setGameState(await getGameState(gameId));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePlayCard(cardId: string, actionType: "play_land" | "cast_spell") {
+    if (!gameId) return;
+    setLoading(true);
+    try {
+      const result = await sendAction(gameId, { type: actionType, card_id: cardId });
       appendLog(result.log);
       setGameState(await getGameState(gameId));
     } finally {
@@ -35,7 +51,10 @@ export function Board() {
             key={p.id}
             player={p}
             isActive={p.id === gameState.active_player_id}
+            isHumanTurn={isHumanTurn}
+            currentStep={gameState.step}
             onCastCommander={handleCastCommander}
+            onPlayCard={handlePlayCard}
           />
         ) : (
           <div key={i} className="seat-empty" />

@@ -62,6 +62,28 @@ async def fetch_collection_images(names: list[str]) -> dict[str, str]:
     return result
 
 
+def apply_cached_data(cards: list) -> None:
+    """Populate type_line, mana_cost, cmc, etc. on Card objects from the in-memory cache.
+    Call after fetch_collection_images so the cache is already warm."""
+    for card in cards:
+        data = _cache.get(card.name)
+        if not data:
+            continue
+        card.type_line = data.get("type_line") or card.type_line
+        card.mana_cost = data.get("mana_cost") or (
+            data.get("card_faces", [{}])[0].get("mana_cost") or card.mana_cost
+        )
+        card.cmc = data.get("cmc", card.cmc)
+        card.oracle_text = data.get("oracle_text") or (
+            data.get("card_faces", [{}])[0].get("oracle_text") or card.oracle_text
+        )
+        card.colors = data.get("colors", card.colors)
+        card.color_identity = data.get("color_identity", card.color_identity)
+        card.keywords = data.get("keywords", card.keywords)
+        card.power = data.get("power", card.power)
+        card.toughness = data.get("toughness", card.toughness)
+
+
 async def fetch_card_by_id(scryfall_id: str) -> dict | None:
     async with httpx.AsyncClient() as client:
         resp = await client.get(f"{SCRYFALL_BASE}/cards/{scryfall_id}", timeout=10)

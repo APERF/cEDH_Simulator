@@ -147,8 +147,15 @@ class GameState:
                     "commander_damage": p.commander_damage,
                     "hand_size": len(p.hand),
                     "battlefield_count": len(p.battlefield),
+                    "land_played_this_turn": p.land_played_this_turn if p.is_human else False,
                     "hand": [
-                        {"id": c.id, "name": c.name, "image_uri": c.image_uri}
+                        {
+                            "id": c.id,
+                            "name": c.name,
+                            "image_uri": c.image_uri,
+                            "type_line": c.type_line,
+                            "mana_cost": c.mana_cost,
+                        }
                         for c in p.hand.cards
                     ] if p.is_human else [],
                     "commanders": [

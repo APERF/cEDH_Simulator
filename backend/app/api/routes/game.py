@@ -3,12 +3,12 @@ import json
 import os
 import random
 from fastapi import APIRouter, HTTPException
-from app.models.schemas import NewGameRequest, Zone
+from app.models.schemas import NewGameRequest, Zone, Step
 from app.engine.card import Card
 from app.engine.player import Player
 from app.engine.game_state import GameState
 from app.decks.parser import parse_decklist, extract_commanders
-from app.cards.scryfall import fetch_collection_images
+from app.cards.scryfall import fetch_collection_images, apply_cached_data
 
 router = APIRouter()
 
@@ -86,12 +86,13 @@ async def new_game(request: NewGameRequest):
     human.library.shuffle()
     human.draw(7)
 
-    # Batch-fetch Scryfall images for all human cards + commanders
+    # Batch-fetch Scryfall data for all human cards + commanders
     all_human_cards = list(human.hand.cards) + list(human.library._cards) + human_commanders
     unique_names = list({c.name for c in all_human_cards})
     images = await fetch_collection_images(unique_names)
     for card in all_human_cards:
         card.image_uri = images.get(card.name)
+    apply_cached_data(all_human_cards)
 
     players: list[Player] = [human]
     ai_commanders: list[Card] = []
@@ -226,6 +227,60 @@ async def player_action(game_id: str, action: dict):
 
         tax_str = f" (+{tax} tax)" if tax > 0 else ""
         msg = f"{human.name} casts {commander.name}{tax_str}"
+        gs.log(msg)
+        return {"status": "ok", "log": [msg]}
+
+    if action_type == "play_land":
+        card_id = action.get("card_id")
+        human = next((p for p in gs.players if p.is_human), None)
+        if not human:
+            raise HTTPException(status_code=400, detail="No human player found")
+        if gs.active_player.id != human.id:
+            raise HTTPException(status_code=400, detail="Not your turn")
+        if gs.step not in (Step.PRECOMBAT_MAIN, Step.POSTCOMBAT_MAIN):
+            raise HTTPException(status_code=400, detail="Can only play a land during main phase")
+        if human.land_played_this_turn:
+            raise HTTPException(status_code=400, detail="Already played a land this turn")
+        card = human.hand.remove(card_id)
+        if not card:
+            raise HTTPException(status_code=400, detail="Card not found in hand")
+        if not card.is_land:
+            human.hand.add(card)
+            raise HTTPException(status_code=400, detail="Card is not a land")
+        card.zone = Zone.BATTLEFIELD
+        card.tapped = False
+        human.battlefield.add(card)
+        human.land_played_this_turn = True
+        msg = f"{human.name} plays {card.name}"
+        gs.log(msg)
+        return {"status": "ok", "log": [msg]}
+
+    if action_type == "cast_spell":
+        card_id = action.get("card_id")
+        human = next((p for p in gs.players if p.is_human), None)
+        if not human:
+            raise HTTPException(status_code=400, detail="No human player found")
+        if gs.active_player.id != human.id:
+            raise HTTPException(status_code=400, detail="Not your turn")
+        card = human.hand.remove(card_id)
+        if not card:
+            raise HTTPException(status_code=400, detail="Card not found in hand")
+        if card.is_land:
+            human.hand.add(card)
+            raise HTTPException(status_code=400, detail="Use play_land for lands")
+        if not card.can_be_cast_at_instant_speed:
+            if gs.step not in (Step.PRECOMBAT_MAIN, Step.POSTCOMBAT_MAIN):
+                human.hand.add(card)
+                raise HTTPException(status_code=400, detail="Can only cast sorcery-speed spells during main phase")
+        is_permanent = card.is_creature or card.is_artifact or card.is_enchantment or "Planeswalker" in card.type_line
+        if is_permanent:
+            card.zone = Zone.BATTLEFIELD
+            card.tapped = False
+            human.battlefield.add(card)
+        else:
+            card.zone = Zone.GRAVEYARD
+            human.graveyard.add(card)
+        msg = f"{human.name} casts {card.name}"
         gs.log(msg)
         return {"status": "ok", "log": [msg]}
 
