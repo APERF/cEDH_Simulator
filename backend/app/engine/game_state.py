@@ -147,6 +147,20 @@ class GameState:
                     "commander_damage": p.commander_damage,
                     "hand_size": len(p.hand),
                     "battlefield_count": len(p.battlefield),
+                    "land_count": sum(1 for c in p.battlefield.permanents if c.is_land),
+                    "lands": [
+                        {
+                            "id": c.id,
+                            "name": c.name,
+                            "image_uri": c.image_uri,
+                            "tapped": c.tapped,
+                        }
+                        for c in p.battlefield.permanents if c.is_land
+                    ],
+                    "library_count": len(p.library),
+                    "graveyard_count": len(p.graveyard.cards),
+                    "exile_count": len(p.exile.cards),
+                    "poison_counters": p.poison_counters,
                     "land_played_this_turn": p.land_played_this_turn if p.is_human else False,
                     "hand": [
                         {

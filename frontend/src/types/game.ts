@@ -53,6 +53,13 @@ export interface CommanderCard {
   in_command_zone: boolean;
 }
 
+export interface LandCard {
+  id: string;
+  name: string;
+  image_uri: string | null;
+  tapped: boolean;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -62,9 +69,15 @@ export interface Player {
   commander_damage: Record<string, number>;
   hand_size: number;
   battlefield_count: number;
+  land_count: number;
+  library_count: number;
+  graveyard_count: number;
+  exile_count: number;
+  poison_counters: number;
   land_played_this_turn: boolean;
   hand: HandCard[];
   commanders: CommanderCard[];
+  lands: LandCard[];
 }
 
 export interface GameState {
