@@ -10,9 +10,18 @@
     "Rograkh, Son of Rohgahh", "Silas Renn, Seeker Adept",
     "Thassa's Oracle", "Demonic Consultation",
     "Isochron Scepter", "Dramatic Reversal",
-    "Mox Opal", "Chrome Mox", "Mana Crypt", "Sol Ring",
-    "Force of Will", "Mana Drain", "Swan Song", "Mental Misstep",
-    "Rhystic Study", "Mystic Remora", "Necropotence"
+    "Mox Opal", "Chrome Mox", "Sol Ring", "Mana Vault", "Arcane Signet",
+    "Force of Will", "Mana Drain", "Swan Song", "Mental Misstep", "Fierce Guardianship",
+    "Rhystic Study", "Mystic Remora", "Necropotence",
+    "Brainstorm", "Ponder", "Mystical Tutor",
+    "Command Tower",
+    "Underground Sea", "Volcanic Island", "Badlands",
+    "Watery Grave", "Blood Crypt", "Steam Vents",
+    "Polluted Delta", "Bloodstained Mire", "Scalding Tarn", "Flooded Strand", "Misty Rainforest",
+    "Sunken Ruins", "Fiery Islet", "Luxury Suite",
+    "Island", "Island",
+    "Swamp", "Swamp",
+    "Mountain"
   ],
   "stax_pieces": ["Null Rod"],
   "decklist": []

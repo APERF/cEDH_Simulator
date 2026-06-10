@@ -7,12 +7,21 @@
   "conversion_rate": 20.31,
   "win_conditions": ["Kinnan + Basalt Monolith infinite mana", "Thassa's Oracle"],
   "key_cards": [
-    "Kinnan, Bonder Prodigy", "Basalt Monolith", "Freed from the Real", "Pemmin's Aura",
-    "Thassa's Oracle", "Blue Sun's Zenith",
-    "Birds of Paradise", "Llanowar Elves", "Elvish Mystic", "Arbor Elf",
-    "Sol Ring", "Mana Crypt", "Chrome Mox", "Mox Diamond",
-    "Force of Will", "Mana Drain", "Counterspell", "Swan Song",
-    "Rhystic Study", "Mystic Remora", "Sylvan Library"
+    "Kinnan, Bonder Prodigy",
+    "Basalt Monolith", "Freed from the Real", "Pemmin's Aura",
+    "Thassa's Oracle", "Blue Sun's Zenith", "Stroke of Genius",
+    "Birds of Paradise", "Llanowar Elves", "Elvish Mystic", "Arbor Elf", "Noble Hierarch",
+    "Sol Ring", "Chrome Mox", "Mox Diamond", "Jeweled Lotus", "Mana Vault", "Arcane Signet",
+    "Force of Will", "Mana Drain", "Counterspell", "Swan Song", "Pact of Negation", "Fierce Guardianship",
+    "Rhystic Study", "Mystic Remora", "Sylvan Library",
+    "Brainstorm", "Ponder", "Mystical Tutor",
+    "Isochron Scepter", "Dramatic Reversal",
+    "Command Tower",
+    "Breeding Pool", "Tropical Island",
+    "Misty Rainforest", "Verdant Catacombs", "Scalding Tarn", "Flooded Strand", "Wooded Foothills",
+    "Yavimaya Coast", "Hinterland Harbor", "Waterlogged Grove", "Rejuvenating Springs", "Flooded Grove",
+    "Island", "Island", "Island",
+    "Forest", "Forest", "Forest"
   ],
   "stax_pieces": [],
   "decklist": []

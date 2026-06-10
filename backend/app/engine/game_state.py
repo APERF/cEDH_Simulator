@@ -85,6 +85,9 @@ class GameState:
             drawn = player.draw(1)
             if drawn:
                 self.log(f"{player.name} draws a card")
+        elif self.step in (Step.PRECOMBAT_MAIN, Step.POSTCOMBAT_MAIN):
+            if not player.is_human and player.ai is not None:
+                player.ai.main_phase_action(self)
         elif self.step == Step.CLEANUP:
             player.mana_pool.empty()
             while len(player.hand) > 7:

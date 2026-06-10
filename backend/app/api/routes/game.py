@@ -12,6 +12,20 @@ from app.decks.parser import parse_decklist, extract_commanders
 from app.cards.scryfall import fetch_collection_images, apply_cached_data
 from app.engine.mana_cost import parse_cost, can_pay, pay
 from app.engine.mana_ability import parse_fetch_targets
+from app.ai.base_ai import BaseAI
+from app.ai.archetypes.kinnan import KinnanAI
+
+_ARCHETYPE_MAP: dict[str, type] = {
+    "Kinnan, Bonder Prodigy": KinnanAI,
+}
+
+
+def _get_ai_class(commander_name: str) -> type:
+    for key, cls in _ARCHETYPE_MAP.items():
+        if key.lower() in commander_name.lower():
+            return cls
+    return BaseAI
+
 
 router = APIRouter()
 
@@ -137,13 +151,26 @@ async def new_game(request: NewGameRequest):
 
         ai.library.shuffle()
         ai.draw(7)
+        ai.ai = _get_ai_class(commander_name)(ai)
+
+        # Populate Scryfall data for AI key cards so mana_cost/type_line/image_uri are set
+        all_ai_cards = list(ai.hand.cards) + list(ai.library._cards)
+        unique_ai_names = list({c.name for c in all_ai_cards if c.name != "(Unknown Card)"})
+        if unique_ai_names:
+            ai_key_images = await fetch_collection_images(unique_ai_names)
+            for c in all_ai_cards:
+                if c.image_uri is None:
+                    c.image_uri = ai_key_images.get(c.name)
+        apply_cached_data(all_ai_cards)
+
         players.append(ai)
 
-    # Fetch images for all AI commanders in one batch
+    # Fetch images and card data for all AI commanders in one batch
     if ai_commanders:
         ai_images = await fetch_collection_images([c.name for c in ai_commanders])
         for cmd in ai_commanders:
             cmd.image_uri = ai_images.get(cmd.name)
+        apply_cached_data(ai_commanders)
 
     random.shuffle(players)
 

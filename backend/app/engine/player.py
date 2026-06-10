@@ -44,6 +44,7 @@ class Player:
         self.commander_damage: dict[str, int] = {}
         self.mana_pool = ManaPool()
         self.land_played_this_turn = False
+        self.ai = None  # BaseAI instance assigned during game initialization
 
         self.library = Library(deck)
         self.hand = Hand()
