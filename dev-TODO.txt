@@ -1,0 +1,18 @@
+cEDH Simulator — Dev TODO
+=========================
+
+[x] Implement turn/phase advancement (untap, upkeep, draw, main, combat, end)
+[x] Implement human card play (play land, cast spell from hand)
+[x] implement board visual to match an actual commander board with zones
+[x] Implement mana system (tap lands for mana, spend mana to cast)
+[x] make changes to the Game UI
+[ ] Implement AI turn logic (basic priority-passing, land drop, spell casting)
+[ ] Display battlefield cards graphically (tapped/untapped state)
+[ ] Draw a card at the start of each turn
+[ ] Implement combat (declare attackers/blockers, damage assignment)
+[ ] Game log improvements (show card names, phases, player actions)
+[ ] Win condition detection (life total, commander damage, poison)
+[ ] Graveyard / exile zone display
+[ ] Stack visualization (spells/abilities on the stack)
+[ ] implement player-field zoom-in
+[ ] implement casting spells

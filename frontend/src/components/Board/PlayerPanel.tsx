@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import type { Player, HandCard, CommanderCard, LandCard, BattlefieldCard, ManaPool, Step } from "../../types/game";
+import type { Player, HandCard, CommanderCard, LandCard, BattlefieldCard, GraveyardCard, ExileCard, ManaPool, Step } from "../../types/game";
 import { canAfford } from "../../utils/mana";
 
 interface Props {
@@ -127,11 +127,53 @@ function ShockModal({ landName, playerLife, onPayLife, onEnterTapped, onClose }:
   );
 }
 
+function GraveyardModal({ cards, playerName, zoneName = "Graveyard", onClose }: {
+  cards: GraveyardCard[];
+  playerName: string;
+  zoneName?: string;
+  onClose: () => void;
+}) {
+  return createPortal(
+    <>
+      <div className="gy-overlay" onClick={onClose} />
+      <div className="gy-modal">
+        <div className="gy-header">
+          <span className="gy-title">{playerName} — {zoneName} ({cards.length})</span>
+          <button className="bf-fs-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="gy-body">
+          {cards.length === 0 ? (
+            <div className="gy-empty">{zoneName} is empty.</div>
+          ) : (
+            <div className="gy-cards">
+              {[...cards].reverse().map((card) => (
+                <div key={card.id} className="gy-card">
+                  {card.image_uri ? (
+                    <img src={card.image_uri} alt={card.name} className="gy-card-img" />
+                  ) : (
+                    <div className="gy-card-fallback">
+                      <span className="gy-card-name">{card.name}</span>
+                      <span className="gy-card-type">{card.type_line}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </>,
+    document.body
+  );
+}
+
 export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCastCommander, onPlayCard, onTapLand }: Props) {
   const [hovered, setHovered] = useState<{ card: HandCard | CommanderCard | LandCard | BattlefieldCard; rect: DOMRect } | null>(null);
   const [colorPicker, setColorPicker] = useState<{ landId: string; produces: string[]; anchor: DOMRect } | null>(null);
   const [shockPrompt, setShockPrompt] = useState<{ cardId: string; name: string } | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [showGY, setShowGY] = useState(false);
+  const [showExile, setShowExile] = useState(false);
   const isMainPhase = currentStep === "precombat_main" || currentStep === "postcombat_main";
 
   function handleLandClick(land: LandCard, e: React.MouseEvent<HTMLDivElement>) {
@@ -207,22 +249,15 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
                   {cmd.commander_tax > 0 && (
                     <div className="cz-tax">+{cmd.commander_tax}</div>
                   )}
-                  {player.is_human && (() => {
-                    const cmdAffordable = canAfford(cmd.mana_cost, player.mana_pool, cmd.commander_tax);
-                    return (
-                      <button
-                        className={`cz-cast-btn${cmdAffordable ? "" : " disabled"}`}
-                        onClick={() => cmdAffordable && onCastCommander(cmd.id)}
-                        title={
-                          cmdAffordable
-                            ? `Cast ${cmd.name}${cmd.commander_tax > 0 ? ` (+${cmd.commander_tax} tax)` : ""}`
-                            : `Need ${cmd.mana_cost ?? ""}${cmd.commander_tax > 0 ? ` +${cmd.commander_tax}` : ""} generic`
-                        }
-                      >
-                        Cast
-                      </button>
-                    );
-                  })()}
+                  {player.is_human && canAfford(cmd.mana_cost, player.mana_pool, cmd.commander_tax) && (
+                    <button
+                      className="cz-cast-btn"
+                      onClick={() => onCastCommander(cmd.id)}
+                      title={`Cast ${cmd.name}${cmd.commander_tax > 0 ? ` (+${cmd.commander_tax} tax)` : ""}`}
+                    >
+                      Cast
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -233,9 +268,9 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
           <div className="bf-permanents">
             <div className="zone-label">Battlefield</div>
             <div className="bf-area">
-              {(player.permanents ?? []).length > 0 ? (
+              {(player.permanents ?? []).filter(c => !c.type_line?.toLowerCase().includes("artifact")).length > 0 ? (
                 <div className="bf-lands-cards">
-                  {(player.permanents ?? []).map((card: BattlefieldCard) => (
+                  {(player.permanents ?? []).filter(c => !c.type_line?.toLowerCase().includes("artifact")).map((card: BattlefieldCard) => (
                     <div
                       key={card.id}
                       className={`bf-land-card${card.tapped ? " tapped" : ""}`}
@@ -261,39 +296,72 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
               )}
             </div>
           </div>
-          <div className="bf-lands">
-            <div className="zone-label">Lands</div>
-            <div className="bf-area">
-              {(player.lands ?? []).length > 0 ? (
-                <div className="bf-lands-cards">
-                  {(player.lands ?? []).map((land: LandCard) => {
-                    const canInteract = player.is_human && isHumanTurn;
-                    return (
+          <div className="bf-lower-row">
+            <div className="bf-lands">
+              <div className="zone-label">Lands</div>
+              <div className="bf-area">
+                {(player.lands ?? []).length > 0 ? (
+                  <div className="bf-lands-cards">
+                    {(player.lands ?? []).map((land: LandCard) => {
+                      const canInteract = player.is_human && isHumanTurn;
+                      return (
+                        <div
+                          key={land.id}
+                          className={`bf-land-card${land.tapped ? " tapped" : ""}${canInteract && !land.tapped ? " tappable" : ""}${canInteract && land.tapped ? " untappable" : ""}`}
+                          onClick={(e) => handleLandClick(land, e)}
+                        >
+                          {land.image_uri ? (
+                            <img
+                              src={land.image_uri}
+                              alt={land.name}
+                              title={land.name}
+                              onMouseEnter={(e) =>
+                                setHovered({ card: land, rect: e.currentTarget.getBoundingClientRect() })
+                              }
+                              onMouseLeave={() => setHovered(null)}
+                            />
+                          ) : (
+                            <div className="bf-land-card-fallback">{land.name}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bf-empty">Empty</div>
+                )}
+              </div>
+            </div>
+            <div className="bf-mana-artifacts">
+              <div className="zone-label">Mana Artifacts</div>
+              <div className="bf-area">
+                {(player.permanents ?? []).filter(c => c.type_line?.toLowerCase().includes("artifact")).length > 0 ? (
+                  <div className="bf-lands-cards">
+                    {(player.permanents ?? []).filter(c => c.type_line?.toLowerCase().includes("artifact")).map((card: BattlefieldCard) => (
                       <div
-                        key={land.id}
-                        className={`bf-land-card${land.tapped ? " tapped" : ""}${canInteract && !land.tapped ? " tappable" : ""}${canInteract && land.tapped ? " untappable" : ""}`}
-                        onClick={(e) => handleLandClick(land, e)}
+                        key={card.id}
+                        className={`bf-land-card${card.tapped ? " tapped" : ""}`}
                       >
-                        {land.image_uri ? (
+                        {card.image_uri ? (
                           <img
-                            src={land.image_uri}
-                            alt={land.name}
-                            title={land.name}
+                            src={card.image_uri}
+                            alt={card.name}
+                            title={card.name}
                             onMouseEnter={(e) =>
-                              setHovered({ card: land, rect: e.currentTarget.getBoundingClientRect() })
+                              setHovered({ card, rect: e.currentTarget.getBoundingClientRect() })
                             }
                             onMouseLeave={() => setHovered(null)}
                           />
                         ) : (
-                          <div className="bf-land-card-fallback">{land.name}</div>
+                          <div className="bf-land-card-fallback">{card.name}</div>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="bf-empty">Empty</div>
-              )}
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bf-empty">Empty</div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -308,12 +376,20 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
             </div>
             <div className="pile-label">Lib</div>
           </div>
-          <div className="zone-pile">
+          <div
+            className="zone-pile zone-pile-clickable"
+            onClick={() => setShowGY(true)}
+            title="View graveyard"
+          >
             <div className="pile-count">{player.graveyard_count ?? 0}</div>
             <div className="pile-icon">☽</div>
             <div className="pile-label">GY</div>
           </div>
-          <div className="zone-pile">
+          <div
+            className="zone-pile zone-pile-clickable"
+            onClick={() => setShowExile(true)}
+            title="View exile"
+          >
             <div className="pile-count">{player.exile_count ?? 0}</div>
             <div className="pile-icon">⊘</div>
             <div className="pile-label">Exile</div>
@@ -404,6 +480,23 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
             setShockPrompt(null);
           }}
           onClose={() => setShockPrompt(null)}
+        />
+      )}
+
+      {showGY && (
+        <GraveyardModal
+          cards={player.graveyard ?? []}
+          playerName={player.name}
+          onClose={() => setShowGY(false)}
+        />
+      )}
+
+      {showExile && (
+        <GraveyardModal
+          cards={player.exile ?? []}
+          playerName={player.name}
+          zoneName="Exile"
+          onClose={() => setShowExile(false)}
         />
       )}
 

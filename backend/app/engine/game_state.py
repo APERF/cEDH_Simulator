@@ -189,7 +189,25 @@ class GameState:
                     ],
                     "library_count": len(p.library),
                     "graveyard_count": len(p.graveyard.cards),
+                    "graveyard": [
+                        {
+                            "id": c.id,
+                            "name": c.name,
+                            "image_uri": c.image_uri,
+                            "type_line": c.type_line,
+                        }
+                        for c in p.graveyard.cards
+                    ],
                     "exile_count": len(p.exile.cards),
+                    "exile": [
+                        {
+                            "id": c.id,
+                            "name": c.name,
+                            "image_uri": c.image_uri,
+                            "type_line": c.type_line,
+                        }
+                        for c in p.exile.cards
+                    ],
                     "poison_counters": p.poison_counters,
                     "land_played_this_turn": p.land_played_this_turn if p.is_human else False,
                     "hand": [

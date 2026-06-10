@@ -96,6 +96,20 @@ export interface BattlefieldCard {
   type_line: string;
 }
 
+export interface GraveyardCard {
+  id: string;
+  name: string;
+  image_uri: string | null;
+  type_line: string;
+}
+
+export interface ExileCard {
+  id: string;
+  name: string;
+  image_uri: string | null;
+  type_line: string;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -108,7 +122,9 @@ export interface Player {
   land_count: number;
   library_count: number;
   graveyard_count: number;
+  graveyard: GraveyardCard[];
   exile_count: number;
+  exile: ExileCard[];
   poison_counters: number;
   land_played_this_turn: boolean;
   mana_pool: ManaPool | undefined;

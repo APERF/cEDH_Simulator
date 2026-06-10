@@ -101,13 +101,12 @@ export function Game() {
               <span className="pb-label">Turn</span>
               <span className="pb-value">{gameState.turn}</span>
             </div>
-            <div className="pb-sep" />
             <button
               className="primary pb-btn"
               onClick={handlePassPriority}
               disabled={isLoading || !isHumanTurn}
             >
-              {isLoading && !isHumanTurn ? "AI thinking..." : "Pass Priority"}
+              {isLoading && !isHumanTurn ? "AI thinking..." : "Move Phases"}
             </button>
             <Link to="/"><button className="pb-btn">&#x2190; New Game</button></Link>
           </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { listMetaDecks, createGame } from "../services/api";
 import { DeckInput } from "../components/DeckInput/DeckInput";
 import { useGameStore } from "../store/gameStore";
@@ -57,6 +57,13 @@ export function Home() {
   const remaining = 3 - selectedOpponents.length;
 
   return (
+    <>
+    <header className="app-header">
+      <Link to="/" className="app-logo">cEDH Simulator</Link>
+      <nav>
+        <Link to="/">Setup</Link>
+      </nav>
+    </header>
     <div className="home">
       <div className="home-hero">
         <h1>cEDH Simulator</h1>
@@ -154,5 +161,6 @@ export function Home() {
         </button>
       </div>
     </div>
+    </>
   );
 }
