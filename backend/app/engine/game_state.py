@@ -61,7 +61,8 @@ class GameState:
         idx = _STEP_SEQUENCE.index(self.step)
         if idx == len(_STEP_SEQUENCE) - 1:
             self.turn_order_index += 1
-            self.turn += 1
+            if self.turn_order_index % len(self.players) == 0:
+                self.turn += 1
             self.step = Step.UNTAP
             self.phase = Phase.BEGINNING
             self.log(f"--- Turn {self.turn}: {self.active_player.name} ---")
@@ -106,7 +107,8 @@ class GameState:
         self.active_player.mana_pool.empty()
         self.active_player.land_played_this_turn = False
         self.turn_order_index += 1
-        self.turn += 1
+        if self.turn_order_index % len(self.players) == 0:
+            self.turn += 1
         self.phase = Phase.BEGINNING
         self.step = Step.UNTAP
         self.log(f"--- Turn {self.turn}: {self.active_player.name} ---")
@@ -174,6 +176,16 @@ class GameState:
                             ),
                         }
                         for c in p.battlefield.permanents if c.is_land
+                    ],
+                    "permanents": [
+                        {
+                            "id": c.id,
+                            "name": c.name,
+                            "image_uri": c.image_uri,
+                            "tapped": c.tapped,
+                            "type_line": c.type_line,
+                        }
+                        for c in p.battlefield.permanents if not c.is_land
                     ],
                     "library_count": len(p.library),
                     "graveyard_count": len(p.graveyard.cards),

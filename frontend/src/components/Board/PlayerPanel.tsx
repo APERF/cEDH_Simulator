@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import type { Player, HandCard, CommanderCard, LandCard, ManaPool, Step } from "../../types/game";
+import type { Player, HandCard, CommanderCard, LandCard, BattlefieldCard, ManaPool, Step } from "../../types/game";
 import { canAfford } from "../../utils/mana";
 
 interface Props {
@@ -72,13 +72,26 @@ function ColorPickerPortal({ produces, anchor, onSelect, onClose }: {
   );
 }
 
-function CardPreviewPortal({ card, anchor }: { card: HandCard | CommanderCard | LandCard; anchor: DOMRect }) {
+function CardPreviewPortal({ card, anchor }: { card: HandCard | CommanderCard | LandCard | BattlefieldCard; anchor: DOMRect }) {
+  const previewWidth = 220;
+  const previewHeight = 308; // ~1.4 card ratio
+  const margin = 10;
+
+  // Clamp horizontally so preview never leaves the viewport
+  let left = anchor.left + anchor.width / 2 - previewWidth / 2;
+  left = Math.max(margin, Math.min(left, window.innerWidth - previewWidth - margin));
+
+  // Prefer above; fall back to below if not enough room
+  const top =
+    anchor.top >= previewHeight + margin
+      ? anchor.top - previewHeight - margin
+      : anchor.bottom + margin;
+
   const style: React.CSSProperties = {
     position: "fixed",
-    left: anchor.left + anchor.width / 2,
-    bottom: window.innerHeight - anchor.top + 10,
-    transform: "translateX(-50%)",
-    width: "220px",
+    left,
+    top,
+    width: `${previewWidth}px`,
     borderRadius: "12px",
     zIndex: 9999,
     pointerEvents: "none",
@@ -115,9 +128,10 @@ function ShockModal({ landName, playerLife, onPayLife, onEnterTapped, onClose }:
 }
 
 export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCastCommander, onPlayCard, onTapLand }: Props) {
-  const [hovered, setHovered] = useState<{ card: HandCard | CommanderCard | LandCard; rect: DOMRect } | null>(null);
+  const [hovered, setHovered] = useState<{ card: HandCard | CommanderCard | LandCard | BattlefieldCard; rect: DOMRect } | null>(null);
   const [colorPicker, setColorPicker] = useState<{ landId: string; produces: string[]; anchor: DOMRect } | null>(null);
   const [shockPrompt, setShockPrompt] = useState<{ cardId: string; name: string } | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
   const isMainPhase = currentStep === "precombat_main" || currentStep === "postcombat_main";
 
   function handleLandClick(land: LandCard, e: React.MouseEvent<HTMLDivElement>) {
@@ -219,9 +233,28 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
           <div className="bf-permanents">
             <div className="zone-label">Battlefield</div>
             <div className="bf-area">
-              {player.battlefield_count - (player.land_count ?? 0) > 0 ? (
-                <div className="bf-count-badge">
-                  {player.battlefield_count - (player.land_count ?? 0)} permanent{player.battlefield_count - (player.land_count ?? 0) !== 1 ? "s" : ""}
+              {(player.permanents ?? []).length > 0 ? (
+                <div className="bf-lands-cards">
+                  {(player.permanents ?? []).map((card: BattlefieldCard) => (
+                    <div
+                      key={card.id}
+                      className={`bf-land-card${card.tapped ? " tapped" : ""}`}
+                    >
+                      {card.image_uri ? (
+                        <img
+                          src={card.image_uri}
+                          alt={card.name}
+                          title={card.name}
+                          onMouseEnter={(e) =>
+                            setHovered({ card, rect: e.currentTarget.getBoundingClientRect() })
+                          }
+                          onMouseLeave={() => setHovered(null)}
+                        />
+                      ) : (
+                        <div className="bf-land-card-fallback">{card.name}</div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="bf-empty">Empty</div>
@@ -292,6 +325,7 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
       {player.is_human && (player.hand ?? []).length > 0 && (
         <div className="pp-hand">
           <div className="zone-label">Hand ({player.hand.length})</div>
+          <button className="bf-fullscreen-btn" onClick={() => setFullscreen(true)} title="Fullscreen battlefield">⛶</button>
           <div className="pp-hand-cards">
             {(player.hand ?? []).map((card) => {
               const isLand = card.type_line?.toLowerCase().includes("land");
@@ -329,6 +363,7 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
       {!player.is_human && player.hand_size > 0 && (
         <div className="pp-ai-hand">
           <div className="zone-label">Hand ({player.hand_size})</div>
+          <button className="bf-fullscreen-btn" onClick={() => setFullscreen(true)} title="Fullscreen battlefield">⛶</button>
           <div className="ai-hand-cards">
             {Array.from({ length: Math.min(player.hand_size, 12) }).map((_, i) => (
               <div key={i} className="ai-card-back" />
@@ -370,6 +405,85 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
           }}
           onClose={() => setShockPrompt(null)}
         />
+      )}
+
+      {fullscreen && createPortal(
+        <>
+          <div className="bf-fs-overlay" onClick={() => setFullscreen(false)} />
+          <div className="bf-fs-panel">
+            <div className="bf-fs-header">
+              <span className="bf-fs-title">{player.name} — Battlefield</span>
+              <button className="bf-fs-close" onClick={() => setFullscreen(false)}>✕</button>
+            </div>
+            <div className="bf-fs-body">
+              <div className="bf-fs-row">
+
+                {/* Command Zone */}
+                <div className="bf-fs-cz">
+                  <div className="zone-label">Cmd Zone</div>
+                  <div className="bf-fs-cz-cards">
+                    {(player.commanders ?? []).filter(cmd => cmd.in_command_zone).map((cmd) => (
+                      cmd.image_uri ? (
+                        <img key={cmd.id} src={cmd.image_uri} alt={cmd.name} title={cmd.name} className="bf-fs-cz-img" />
+                      ) : (
+                        <div key={cmd.id} className="bf-land-card-fallback">{cmd.name}</div>
+                      )
+                    ))}
+                  </div>
+                </div>
+
+                {/* Battlefield + Lands */}
+                <div className="bf-fs-main">
+                  <div className="bf-fs-zone">
+                    <div className="zone-label">Battlefield</div>
+                    <div className="bf-fs-cards">
+                      {(player.permanents ?? []).length === 0
+                        ? <div className="bf-empty">Empty</div>
+                        : (player.permanents ?? []).map((card: BattlefieldCard) => (
+                            <div key={card.id} className={`bf-land-card${card.tapped ? " tapped" : ""}`}>
+                              {card.image_uri
+                                ? <img src={card.image_uri} alt={card.name} title={card.name} />
+                                : <div className="bf-land-card-fallback">{card.name}</div>}
+                            </div>
+                          ))}
+                    </div>
+                  </div>
+                  <div className="bf-fs-zone lands">
+                    <div className="zone-label">Lands</div>
+                    <div className="bf-fs-cards">
+                      {(player.lands ?? []).length === 0
+                        ? <div className="bf-empty">Empty</div>
+                        : (player.lands ?? []).map((land: LandCard) => (
+                            <div key={land.id} className={`bf-land-card${land.tapped ? " tapped" : ""}`}>
+                              {land.image_uri
+                                ? <img src={land.image_uri} alt={land.name} title={land.name} />
+                                : <div className="bf-land-card-fallback">{land.name}</div>}
+                            </div>
+                          ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Piles */}
+                <div className="bf-fs-piles">
+                  {[
+                    { label: "Library", count: player.library_count ?? 0, icon: null },
+                    { label: "Graveyard", count: player.graveyard_count ?? 0, icon: "☽" },
+                    { label: "Exile", count: player.exile_count ?? 0, icon: "⊘" },
+                  ].map(({ label, count, icon }) => (
+                    <div key={label} className="bf-fs-pile">
+                      <div className="bf-fs-pile-count">{count}</div>
+                      {icon && <div className="bf-fs-pile-icon">{icon}</div>}
+                      <div className="bf-fs-pile-label">{label}</div>
+                    </div>
+                  ))}
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </>,
+        document.body
       )}
     </div>
   );

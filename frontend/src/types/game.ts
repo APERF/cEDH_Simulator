@@ -88,6 +88,14 @@ export interface ManaPool {
   C: number;
 }
 
+export interface BattlefieldCard {
+  id: string;
+  name: string;
+  image_uri: string | null;
+  tapped: boolean;
+  type_line: string;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -107,6 +115,7 @@ export interface Player {
   hand: HandCard[];
   commanders: CommanderCard[];
   lands: LandCard[];
+  permanents: BattlefieldCard[];
 }
 
 export interface GameState {

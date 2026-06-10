@@ -39,6 +39,7 @@ export function Game() {
   const { gameId } = useParams<{ gameId: string }>();
   const { gameState, actionLog, appendLog, setGameState, setLoading, isLoading } = useGameStore();
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const autoAdvancingRef = useRef(false);
 
   useEffect(() => {
@@ -100,10 +101,15 @@ export function Game() {
               <span className="pb-label">Turn</span>
               <span className="pb-value">{gameState.turn}</span>
             </div>
-            <div className="pb-item">
-              <span className="pb-label">Active</span>
-              <span className="pb-value pb-active-name">{activeName}</span>
-            </div>
+            <div className="pb-sep" />
+            <button
+              className="primary pb-btn"
+              onClick={handlePassPriority}
+              disabled={isLoading || !isHumanTurn}
+            >
+              {isLoading && !isHumanTurn ? "AI thinking..." : "Pass Priority"}
+            </button>
+            <Link to="/"><button className="pb-btn">&#x2190; New Game</button></Link>
           </div>
 
           <div className="pb-steps">
@@ -154,32 +160,31 @@ export function Game() {
           )}
         </div>
 
-        <div className="game-sidebar">
-          <div className="sidebar-controls">
-            <button
-              className="primary"
-              onClick={handlePassPriority}
-              disabled={isLoading || !isHumanTurn}
-            >
-              {isLoading && !isHumanTurn ? "AI thinking..." : "Pass Priority"}
-            </button>
-            <Link to="/" style={{ width: "100%" }}>
-              <button style={{ width: "100%" }}>&#x2190; New Game</button>
-            </Link>
-          </div>
+        <div className={`game-sidebar${sidebarCollapsed ? " collapsed" : ""}`}>
+          <button
+            className="sidebar-toggle"
+            onClick={() => setSidebarCollapsed(c => !c)}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? "«" : "»"}
+          </button>
 
-          <div className="game-log">
-            <h3>Game Log</h3>
-            <div className="log-entries">
-              {actionLog.length === 0 ? (
-                <span className="log-empty">No actions yet.</span>
-              ) : (
-                [...actionLog].reverse().map((entry, i) => (
-                  <div key={i} className="log-entry">{entry}</div>
-                ))
-              )}
-            </div>
-          </div>
+          {!sidebarCollapsed && (
+            <>
+              <div className="game-log">
+                <h3>Game Log</h3>
+                <div className="log-entries">
+                  {actionLog.length === 0 ? (
+                    <span className="log-empty">No actions yet.</span>
+                  ) : (
+                    [...actionLog].reverse().map((entry, i) => (
+                      <div key={i} className="log-entry">{entry}</div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
