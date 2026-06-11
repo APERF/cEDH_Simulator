@@ -8,11 +8,13 @@ cEDH Simulator — Dev TODO
 [x] make changes to the Game UI
 [x] Implement AI turn logic (basic priority-passing, land drop, spell casting)
 [ ] Stack visualization (spells/abilities on the stack)
-[ ] Display battlefield cards graphically (tapped/untapped state)
-[ ] Draw a card at the start of each turn
+[x] Display battlefield cards graphically (tapped/untapped state)
+[x] Draw a card at the start of each turn
 [ ] Implement combat (declare attackers/blockers, damage assignment)
 [ ] Game log improvements (show card names, phases, player actions)
 [ ] Win condition detection (life total, commander damage, poison)
 [ ] Graveyard / exile zone display
-[ ] implement player-field zoom-in
+[x] implement player-field zoom-in
 [ ] implement casting spells
+[ ] implement logic that follows and executes each card's specific rules
+[ ] implement Turn 0 logic

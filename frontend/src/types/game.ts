@@ -134,6 +134,16 @@ export interface Player {
   permanents: BattlefieldCard[];
 }
 
+export interface StackItem {
+  id: string;
+  name: string;
+  image_uri: string | null;
+  type_line: string;
+  mana_cost: string | null;
+  controller_id: string;
+  controller_name: string;
+}
+
 export interface GameState {
   game_id: string;
   mulligan_phase: "mulliganing" | "selecting_bottom" | "playing";
@@ -145,6 +155,7 @@ export interface GameState {
   step: Step;
   players: Player[];
   stack_size: number;
+  stack: StackItem[];
   winner: string | null;
 }
 

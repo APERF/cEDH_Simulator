@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, Fragment } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Board } from "../components/Board/Board";
 import { MulliganPhase } from "../components/MulliganPhase/MulliganPhase";
+import { StackOverlay } from "../components/StackOverlay/StackOverlay";
 import { useGameStore } from "../store/gameStore";
 import { getGameState, sendAction, advanceAiTurn } from "../services/api";
 
@@ -40,7 +41,9 @@ export function Game() {
   const { gameState, actionLog, appendLog, setGameState, setLoading, isLoading } = useGameStore();
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [holdingPriority, setHoldingPriority] = useState(false);
   const autoAdvancingRef = useRef(false);
+  const prevStackTopIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!gameId) return;
@@ -50,13 +53,15 @@ export function Game() {
       .catch((e) => setFetchError(e?.response?.data?.detail ?? e?.message ?? "Failed to load game"));
   }, [gameId]);
 
-  // Auto-advance through AI turns whenever the active player is not human
+  // Auto-advance through AI turns, but stop when the stack needs human priority
   useEffect(() => {
     if (!gameId || !gameState) return;
     if (gameState.mulligan_phase !== "playing") return;
     if (gameState.winner) return;
     const humanPlayer = gameState.players.find(p => p.is_human);
     if (!humanPlayer || gameState.active_player_id === humanPlayer.id) return;
+    // Stack has items — human has priority regardless of whose turn it is
+    if ((gameState.stack ?? []).length > 0) return;
     if (autoAdvancingRef.current) return;
 
     autoAdvancingRef.current = true;
@@ -72,7 +77,18 @@ export function Game() {
         autoAdvancingRef.current = false;
         setLoading(false);
       });
-  }, [gameState?.active_player_id, gameState?.mulligan_phase]);
+  // stack_size in deps so auto-advance resumes when human clears the stack
+  }, [gameState?.active_player_id, gameState?.mulligan_phase, gameState?.stack_size]);
+
+  // When a new spell appears on top of the stack (player just cast while holding priority),
+  // drop hold-priority so the overlay shows for the new spell automatically.
+  useEffect(() => {
+    const topId = (gameState?.stack ?? [])[0]?.id ?? null;
+    if (topId && topId !== prevStackTopIdRef.current) {
+      prevStackTopIdRef.current = topId;
+      setHoldingPriority(false);
+    }
+  }, [gameState?.stack?.[0]?.id]);
 
   const humanPlayer = gameState?.players.find(p => p.is_human);
   const isHumanTurn = !!humanPlayer && gameState?.active_player_id === humanPlayer.id;
@@ -146,7 +162,7 @@ export function Game() {
       )}
 
       <div className="game-main">
-        <div className="board-area">
+        <div className="board-area" style={{ position: "relative" }}>
           {fetchError && (
             <div style={{ color: "var(--red)", padding: "12px", fontSize: "13px" }}>
               Error loading game: {fetchError}
@@ -155,7 +171,27 @@ export function Game() {
           {gameState && gameState.mulligan_phase !== "playing" ? (
             <MulliganPhase gameState={gameState} onStateChange={setGameState} />
           ) : (
-            <Board />
+            <>
+              <Board />
+              {gameState && (gameState.stack ?? []).length > 0 && holdingPriority && (
+                <div className="hold-priority-banner">
+                  <span className="hold-priority-info">
+                    Holding priority — {gameState.stack.length} spell{gameState.stack.length !== 1 ? "s" : ""} on stack
+                    <span className="hold-priority-top"> · Next to resolve: <strong>{gameState.stack[0]?.name}</strong></span>
+                  </span>
+                  <button className="primary hold-priority-return" onClick={() => setHoldingPriority(false)}>
+                    Return to Stack
+                  </button>
+                </div>
+              )}
+              {gameState && (gameState.stack ?? []).length > 0 && !holdingPriority && (
+                <StackOverlay
+                  gameState={gameState}
+                  onStateChange={setGameState}
+                  onHoldPriority={() => setHoldingPriority(true)}
+                />
+              )}
+            </>
           )}
         </div>
 

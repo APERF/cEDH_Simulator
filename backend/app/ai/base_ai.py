@@ -1,8 +1,10 @@
 from __future__ import annotations
+import uuid
 from abc import ABC
 from typing import TYPE_CHECKING
 
 from app.engine.mana_cost import parse_cost, can_pay, pay
+from app.engine.stack import StackObject
 from app.models.schemas import Zone
 
 if TYPE_CHECKING:
@@ -61,12 +63,25 @@ class BaseAI(ABC):
             if can_pay(player.mana_pool, cost, extra_generic=tax):
                 pay(player.mana_pool, cost, extra_generic=tax)
                 player.command_zone.increment_cast(cmd.id)
-                cmd.zone = Zone.BATTLEFIELD
-                cmd.tapped = False
-                player.battlefield.add(cmd)
+                cmd.zone = Zone.STACK
+
+                def _make_cmd_resolve(c, p):
+                    def resolve_fn(gs):
+                        c.zone = Zone.BATTLEFIELD
+                        c.tapped = False
+                        p.battlefield.add(c)
+                    return resolve_fn
+
+                game_state.stack.push(StackObject(
+                    id=str(uuid.uuid4()),
+                    card=cmd,
+                    controller_id=player.id,
+                    targets=[],
+                    resolve_fn=_make_cmd_resolve(cmd, player),
+                ))
                 game_state.log(f"{player.name} casts {cmd.name} from command zone")
 
-        # Cast affordable spells, lowest CMC first, until nothing more can be cast
+        # Cast affordable spells onto the stack, lowest CMC first
         while True:
             castable = sorted(
                 [
@@ -82,17 +97,30 @@ class BaseAI(ABC):
             if not pay(player.mana_pool, parse_cost(card.mana_cost)):
                 break
             player.hand.remove(card.id)
+            card.zone = Zone.STACK
             is_permanent = (
                 card.is_creature or card.is_artifact or card.is_enchantment
                 or "Planeswalker" in (card.type_line or "")
             )
-            if is_permanent:
-                card.zone = Zone.BATTLEFIELD
-                card.tapped = False
-                player.battlefield.add(card)
-            else:
-                card.zone = Zone.GRAVEYARD
-                player.graveyard.add(card)
+
+            def _make_resolve_fn(c, p, permanent):
+                def resolve_fn(gs):
+                    if permanent:
+                        c.zone = Zone.BATTLEFIELD
+                        c.tapped = False
+                        p.battlefield.add(c)
+                    else:
+                        c.zone = Zone.GRAVEYARD
+                        p.graveyard.add(c)
+                return resolve_fn
+
+            game_state.stack.push(StackObject(
+                id=str(uuid.uuid4()),
+                card=card,
+                controller_id=player.id,
+                targets=[],
+                resolve_fn=_make_resolve_fn(card, player, is_permanent),
+            ))
             game_state.log(f"{player.name} casts {card.name}")
 
     def should_counter(self, game_state: GameState, spell_name: str, caster_id: str) -> bool:

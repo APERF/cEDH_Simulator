@@ -58,6 +58,10 @@ class GameState:
         if self.winner:
             return
         self._process_current_step()
+        self.check_state_based_actions()
+        # If the step put spells on the stack, pause here so players get priority.
+        if not self.stack.is_empty:
+            return
         idx = _STEP_SEQUENCE.index(self.step)
         if idx == len(_STEP_SEQUENCE) - 1:
             self.turn_order_index += 1
@@ -69,7 +73,6 @@ class GameState:
         else:
             self.step = _STEP_SEQUENCE[idx + 1]
             self.phase = _STEP_TO_PHASE[self.step]
-        self.check_state_based_actions()
 
     def _process_current_step(self) -> None:
         player = self.active_player
@@ -101,6 +104,7 @@ class GameState:
         while (
             self.active_player.id != human_player_id
             and not self.winner
+            and self.stack.is_empty
             and steps < max_steps
         ):
             self.advance_step()
@@ -141,6 +145,12 @@ class GameState:
             "phase": self.phase.value,
             "step": self.step.value,
             "stack_size": len(self.stack),
+            "stack": [
+                obj.to_dict(
+                    controller_name=next((p.name for p in self.players if p.id == obj.controller_id), "")
+                )
+                for obj in reversed(self.stack.objects)  # top of stack first
+            ],
             "winner": self.winner,
             "players": [
                 {

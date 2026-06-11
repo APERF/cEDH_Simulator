@@ -12,6 +12,7 @@ from app.decks.parser import parse_decklist, extract_commanders
 from app.cards.scryfall import fetch_collection_images, apply_cached_data
 from app.engine.mana_cost import parse_cost, can_pay, pay
 from app.engine.mana_ability import parse_fetch_targets
+from app.engine.stack import StackObject
 from app.ai.base_ai import BaseAI
 from app.ai.archetypes.kinnan import KinnanAI
 
@@ -250,10 +251,17 @@ async def player_action(game_id: str, action: dict):
     action_type = action.get("type")
 
     if action_type == "pass_priority":
-        if not gs.active_player.is_human:
-            return {"status": "ok", "log": []}
         log_before = len(gs.game_log)
-        gs.advance_step()
+        if not gs.stack.is_empty:
+            # Human always has priority to resolve the stack, regardless of whose turn it is
+            obj = gs.stack.resolve_top(gs)
+            if obj:
+                gs.log(f"{obj.card.name} resolves")
+        elif gs.active_player.is_human:
+            # Stack is empty — advance the phase (only valid on human's turn)
+            gs.advance_step()
+        else:
+            return {"status": "ok", "log": []}
         return {"status": "ok", "log": gs.game_log[log_before:]}
 
     if action_type == "cast_commander":
@@ -270,6 +278,12 @@ async def player_action(game_id: str, action: dict):
             raise HTTPException(status_code=400, detail="Commander not found")
         if commander.zone != Zone.COMMAND:
             raise HTTPException(status_code=400, detail="Commander is not in command zone")
+        if gs.active_player.id != human.id:
+            raise HTTPException(status_code=400, detail="Not your turn")
+        if gs.step not in (Step.PRECOMBAT_MAIN, Step.POSTCOMBAT_MAIN):
+            raise HTTPException(status_code=400, detail="Can only cast your commander during main phase")
+        if not gs.stack.is_empty:
+            raise HTTPException(status_code=400, detail="Can only cast your commander when the stack is empty")
 
         tax = human.command_zone.commander_tax(card_id)
         cost = parse_cost(commander.mana_cost or "")
@@ -281,10 +295,21 @@ async def player_action(game_id: str, action: dict):
                 detail=f"Not enough mana (need {cost_str}{tax_str} generic)",
             )
         pay(human.mana_pool, cost, extra_generic=tax)
-        commander.zone = Zone.BATTLEFIELD
-        human.battlefield.add(commander)
         human.command_zone.increment_cast(card_id)
+        commander.zone = Zone.STACK
 
+        def _commander_resolve(game_state, cmd=commander, player=human):
+            cmd.zone = Zone.BATTLEFIELD
+            cmd.tapped = False
+            player.battlefield.add(cmd)
+
+        gs.stack.push(StackObject(
+            id=str(uuid_lib.uuid4()),
+            card=commander,
+            controller_id=human.id,
+            targets=[],
+            resolve_fn=_commander_resolve,
+        ))
         tax_str = f" (+{tax} tax)" if tax > 0 else ""
         msg = f"{human.name} casts {commander.name}{tax_str}"
         gs.log(msg)
@@ -383,18 +408,30 @@ async def player_action(game_id: str, action: dict):
         human = next((p for p in gs.players if p.is_human), None)
         if not human:
             raise HTTPException(status_code=400, detail="No human player found")
-        if gs.active_player.id != human.id:
-            raise HTTPException(status_code=400, detail="Not your turn")
         card = human.hand.remove(card_id)
         if not card:
             raise HTTPException(status_code=400, detail="Card not found in hand")
         if card.is_land:
             human.hand.add(card)
             raise HTTPException(status_code=400, detail="Use play_land for lands")
-        if not card.can_be_cast_at_instant_speed:
+        if card.can_be_cast_at_instant_speed:
+            # Instants / flash: castable any time the human has priority —
+            # either on their own turn or while the stack has items.
+            has_priority = (gs.active_player.id == human.id) or (not gs.stack.is_empty)
+            if not has_priority:
+                human.hand.add(card)
+                raise HTTPException(status_code=400, detail="You do not have priority")
+        else:
+            # Sorcery-speed: human's main phase only, and stack must be empty.
+            if gs.active_player.id != human.id:
+                human.hand.add(card)
+                raise HTTPException(status_code=400, detail="Not your turn")
             if gs.step not in (Step.PRECOMBAT_MAIN, Step.POSTCOMBAT_MAIN):
                 human.hand.add(card)
                 raise HTTPException(status_code=400, detail="Can only cast sorcery-speed spells during main phase")
+            if not gs.stack.is_empty:
+                human.hand.add(card)
+                raise HTTPException(status_code=400, detail="Can only cast sorcery-speed spells when the stack is empty")
         cost = parse_cost(card.mana_cost or "")
         if not can_pay(human.mana_pool, cost):
             human.hand.add(card)
@@ -404,13 +441,27 @@ async def player_action(game_id: str, action: dict):
             )
         pay(human.mana_pool, cost)
         is_permanent = card.is_creature or card.is_artifact or card.is_enchantment or "Planeswalker" in card.type_line
-        if is_permanent:
-            card.zone = Zone.BATTLEFIELD
-            card.tapped = False
-            human.battlefield.add(card)
-        else:
-            card.zone = Zone.GRAVEYARD
-            human.graveyard.add(card)
+        card.zone = Zone.STACK
+
+        def _make_resolve_fn(c, player, permanent):
+            def resolve_fn(game_state):
+                if permanent:
+                    c.zone = Zone.BATTLEFIELD
+                    c.tapped = False
+                    player.battlefield.add(c)
+                else:
+                    c.zone = Zone.GRAVEYARD
+                    player.graveyard.add(c)
+            return resolve_fn
+
+        stack_obj = StackObject(
+            id=str(uuid_lib.uuid4()),
+            card=card,
+            controller_id=human.id,
+            targets=[],
+            resolve_fn=_make_resolve_fn(card, human, is_permanent),
+        )
+        gs.stack.push(stack_obj)
         msg = f"{human.name} casts {card.name}"
         gs.log(msg)
         return {"status": "ok", "log": [msg]}

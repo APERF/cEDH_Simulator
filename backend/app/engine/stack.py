@@ -15,6 +15,17 @@ class StackObject:
     targets: list[str] = field(default_factory=list)
     resolve_fn: Optional[Callable[[GameState], None]] = field(default=None, repr=False)
 
+    def to_dict(self, controller_name: str = "") -> dict:
+        return {
+            "id": self.id,
+            "name": self.card.name,
+            "image_uri": self.card.image_uri,
+            "type_line": self.card.type_line,
+            "mana_cost": self.card.mana_cost,
+            "controller_id": self.controller_id,
+            "controller_name": controller_name,
+        }
+
 
 class Stack:
     def __init__(self) -> None:
