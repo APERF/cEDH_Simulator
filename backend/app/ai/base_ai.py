@@ -54,7 +54,7 @@ class BaseAI(ABC):
                 land.tapped_for = color
                 player.mana_pool.add(color)
 
-        # Cast commanders from command zone if affordable (CMC 0 commanders are always free)
+        # Cast one commander from command zone if affordable — one spell per priority window
         for cmd in player.command_zone.commanders:
             if cmd.zone != Zone.COMMAND:
                 continue
@@ -80,48 +80,48 @@ class BaseAI(ABC):
                     resolve_fn=_make_cmd_resolve(cmd, player),
                 ))
                 game_state.log(f"{player.name} casts {cmd.name} from command zone")
+                return  # one spell per priority window; let the stack resolve before casting again
 
-        # Cast affordable spells onto the stack, lowest CMC first
-        while True:
-            castable = sorted(
-                [
-                    c for c in player.hand.cards
-                    if not c.is_land and c.mana_cost
-                    and can_pay(player.mana_pool, parse_cost(c.mana_cost))
-                ],
-                key=lambda c: c.cmc,
-            )
-            if not castable:
-                break
-            card = castable[0]
-            if not pay(player.mana_pool, parse_cost(card.mana_cost)):
-                break
-            player.hand.remove(card.id)
-            card.zone = Zone.STACK
-            is_permanent = (
-                card.is_creature or card.is_artifact or card.is_enchantment
-                or "Planeswalker" in (card.type_line or "")
-            )
+        # Cast one affordable spell from hand (lowest CMC first) — one spell per priority window
+        castable = sorted(
+            [
+                c for c in player.hand.cards
+                if not c.is_land and c.mana_cost
+                and can_pay(player.mana_pool, parse_cost(c.mana_cost))
+            ],
+            key=lambda c: c.cmc,
+        )
+        if not castable:
+            return
+        card = castable[0]
+        if not pay(player.mana_pool, parse_cost(card.mana_cost)):
+            return
+        player.hand.remove(card.id)
+        card.zone = Zone.STACK
+        is_permanent = (
+            card.is_creature or card.is_artifact or card.is_enchantment
+            or "Planeswalker" in (card.type_line or "")
+        )
 
-            def _make_resolve_fn(c, p, permanent):
-                def resolve_fn(gs):
-                    if permanent:
-                        c.zone = Zone.BATTLEFIELD
-                        c.tapped = False
-                        p.battlefield.add(c)
-                    else:
-                        c.zone = Zone.GRAVEYARD
-                        p.graveyard.add(c)
-                return resolve_fn
+        def _make_resolve_fn(c, p, permanent):
+            def resolve_fn(gs):
+                if permanent:
+                    c.zone = Zone.BATTLEFIELD
+                    c.tapped = False
+                    p.battlefield.add(c)
+                else:
+                    c.zone = Zone.GRAVEYARD
+                    p.graveyard.add(c)
+            return resolve_fn
 
-            game_state.stack.push(StackObject(
-                id=str(uuid.uuid4()),
-                card=card,
-                controller_id=player.id,
-                targets=[],
-                resolve_fn=_make_resolve_fn(card, player, is_permanent),
-            ))
-            game_state.log(f"{player.name} casts {card.name}")
+        game_state.stack.push(StackObject(
+            id=str(uuid.uuid4()),
+            card=card,
+            controller_id=player.id,
+            targets=[],
+            resolve_fn=_make_resolve_fn(card, player, is_permanent),
+        ))
+        game_state.log(f"{player.name} casts {card.name}")
 
     def should_counter(self, game_state: GameState, spell_name: str, caster_id: str) -> bool:
         return False

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import type { GameState, StackItem } from "../../types/game";
+import type { GameState, Player, StackItem } from "../../types/game";
 import { sendAction, getGameState } from "../../services/api";
 
 interface Props {
@@ -8,7 +8,7 @@ interface Props {
   onHoldPriority: () => void;
 }
 
-type OverlayPhase = "human_priority" | "ai_thinking";
+type OverlayPhase = "pre_human_ai" | "human_priority" | "post_human_ai";
 type AIDecision = "thinking" | "pass" | "counter";
 
 interface AIState {
@@ -25,6 +25,18 @@ function ordinal(n: number): string {
 
 const THINKING_DOTS = ["", ".", "..", "..."];
 
+// Returns players in priority order after the caster auto-passes, following seat/turn order.
+function priorityOrderAfterCast(players: Player[], casterId: string): Player[] {
+  const n = players.length;
+  const casterIdx = players.findIndex((p) => p.id === casterId);
+  if (casterIdx === -1) return players.filter((p) => p.id !== casterId);
+  const order: Player[] = [];
+  for (let i = 1; i < n; i++) {
+    order.push(players[(casterIdx + i) % n]);
+  }
+  return order;
+}
+
 export function StackOverlay({ gameState, onStateChange, onHoldPriority }: Props) {
   const [phase, setPhase] = useState<OverlayPhase>("human_priority");
   const [busy, setBusy] = useState(false);
@@ -33,69 +45,109 @@ export function StackOverlay({ gameState, onStateChange, onHoldPriority }: Props
   const [aiDone, setAiDone] = useState(false);
   const [dotIdx, setDotIdx] = useState(0);
 
-  // Track top-of-stack id so we reset to human_priority when a new spell lands
   const topIdRef = useRef<string | null>(null);
+  // Incremented on each new spell to cancel superseded animations.
+  const animGenRef = useRef<number>(0);
 
   const stack = gameState.stack ?? [];
   const human = gameState.players.find((p) => p.is_human);
-  const opponents = gameState.players.filter((p) => !p.is_human);
 
-  // Who cast the top spell?
   const topCasterId = stack[0]?.controller_id ?? null;
   const topCasterName = stack[0]?.controller_name ?? "";
   const humanCastTop = !!human && topCasterId === human.id;
 
-  // Non-caster opponents are the ones who still need to pass priority
-  const thinkingOpponents = opponents.filter((p) => p.id !== topCasterId);
+  // Priority order (excluding caster) in turn/seat order.
+  const priorityOrder: Player[] = topCasterId
+    ? priorityOrderAfterCast(gameState.players, topCasterId)
+    : gameState.players.filter((p) => !p.is_human);
 
-  // Animated dots for thinking state
+  const humanPriorityIdx = priorityOrder.findIndex((p) => p.is_human);
+
+  // AIs who act before the human in this priority window.
+  const preHumanAIs: Player[] =
+    humanPriorityIdx > 0
+      ? priorityOrder.slice(0, humanPriorityIdx).filter((p) => !p.is_human)
+      : [];
+
+  // AIs who act after the human (or all AIs when human is the caster).
+  const postHumanAIs: Player[] =
+    humanPriorityIdx === -1
+      ? priorityOrder.filter((p) => !p.is_human)
+      : priorityOrder.slice(humanPriorityIdx + 1).filter((p) => !p.is_human);
+
+  // Animated dots for thinking state.
   useEffect(() => {
     const id = setInterval(() => setDotIdx((i) => (i + 1) % THINKING_DOTS.length), 380);
     return () => clearInterval(id);
   }, []);
 
-  // When a new spell appears on top, go back to human_priority so they act first
+  // When a new spell lands on top, run pre-human AI animation then give human priority.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const topId = stack[0]?.id ?? null;
-    if (topId && topId !== topIdRef.current) {
-      topIdRef.current = topId;
-      // Only reset if we're not mid-animation (ai_thinking drives the resolve flow itself)
-      if (phase !== "ai_thinking") {
-        setPhase("human_priority");
-        setAiStates([]);
-        setAiDone(false);
-        setError(null);
-      }
+    if (!topId || topId === topIdRef.current) return;
+    topIdRef.current = topId;
+
+    const gen = ++animGenRef.current;
+    const cancelled = () => animGenRef.current !== gen;
+
+    setAiStates([]);
+    setAiDone(false);
+    setError(null);
+    setBusy(false);
+
+    if (humanCastTop || preHumanAIs.length === 0) {
+      setPhase("human_priority");
+      return;
     }
+
+    async function runPreHumanAIs() {
+      setPhase("pre_human_ai");
+      setAiStates(
+        preHumanAIs.map((p) => ({ playerId: p.id, name: p.name, decision: "thinking" as AIDecision }))
+      );
+
+      for (const opp of preHumanAIs) {
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, 900 + Math.random() * 1100)
+        );
+        if (cancelled()) return;
+        setAiStates((prev) =>
+          prev.map((s) => (s.playerId === opp.id ? { ...s, decision: "pass" } : s))
+        );
+      }
+
+      await new Promise<void>((resolve) => setTimeout(resolve, 500));
+      if (cancelled()) return;
+
+      setPhase("human_priority");
+      setAiStates([]);
+    }
+
+    runPreHumanAIs();
   }, [stack[0]?.id]);
 
-  // Run the AI thinking animation for non-caster opponents, then call the backend
+  // Run post-human AI animation then resolve via backend.
   async function runAiThenResolve() {
     setError(null);
 
-    if (thinkingOpponents.length > 0) {
-      setPhase("ai_thinking");
+    if (postHumanAIs.length > 0) {
+      setPhase("post_human_ai");
       setAiDone(false);
 
-      const initialStates: AIState[] = thinkingOpponents.map((p) => ({
-        playerId: p.id,
-        name: p.name,
-        decision: "thinking",
-      }));
-      setAiStates(initialStates);
+      setAiStates(
+        postHumanAIs.map((p) => ({ playerId: p.id, name: p.name, decision: "thinking" as AIDecision }))
+      );
 
-      // Stagger each opponent's decision reveal
       let delay = 0;
       await Promise.all(
-        thinkingOpponents.map(
+        postHumanAIs.map(
           (opp) =>
             new Promise<void>((resolve) => {
               delay += 900 + Math.random() * 1100;
               setTimeout(() => {
                 setAiStates((prev) =>
-                  prev.map((s) =>
-                    s.playerId === opp.id ? { ...s, decision: "pass" } : s
-                  )
+                  prev.map((s) => (s.playerId === opp.id ? { ...s, decision: "pass" } : s))
                 );
                 resolve();
               }, delay);
@@ -104,16 +156,15 @@ export function StackOverlay({ gameState, onStateChange, onHoldPriority }: Props
       );
 
       setAiDone(true);
-      // Brief pause so the player sees all ✓ Pass badges before resolving
       await new Promise<void>((r) => setTimeout(r, 500));
     }
 
-    // Resolve via backend
     setBusy(true);
     try {
       await sendAction(gameState.game_id, { type: "pass_priority" });
       const next = await getGameState(gameState.game_id);
       topIdRef.current = null;
+      animGenRef.current++;
       setPhase("human_priority");
       setAiStates([]);
       setAiDone(false);
@@ -126,7 +177,7 @@ export function StackOverlay({ gameState, onStateChange, onHoldPriority }: Props
     }
   }
 
-  const inAiPhase = phase === "ai_thinking";
+  const showAiPanel = phase === "pre_human_ai" || phase === "post_human_ai";
 
   return (
     <div className="stack-overlay">
@@ -138,6 +189,8 @@ export function StackOverlay({ gameState, onStateChange, onHoldPriority }: Props
           <p className="stack-sub">
             {humanCastTop
               ? "You cast a spell — you have priority first."
+              : phase === "pre_human_ai"
+              ? `${topCasterName} cast a spell — waiting for players before you…`
               : `${topCasterName} cast a spell — you have priority to respond.`}
           </p>
         </div>
@@ -164,11 +217,13 @@ export function StackOverlay({ gameState, onStateChange, onHoldPriority }: Props
           ))}
         </div>
 
-        {/* ── Human priority (acts FIRST) ── */}
-        {!inAiPhase && (
+        {/* ── Human priority window ── */}
+        {phase === "human_priority" && (
           <div className="stack-human-priority">
             <div className="stack-priority-label">
-              {humanCastTop ? "Your priority — respond or pass:" : `Your priority — respond to ${topCasterName} or pass:`}
+              {humanCastTop
+                ? "Your priority — respond or pass:"
+                : `Your priority — respond to ${topCasterName} or pass:`}
             </div>
             <div className="stack-actions">
               <button
@@ -188,31 +243,29 @@ export function StackOverlay({ gameState, onStateChange, onHoldPriority }: Props
               </button>
             </div>
             <p className="stack-respond-hint">
-              Hold Priority to cast an <strong>instant</strong> (or flash spell) first — or Pass Priority to let opponents respond.
+              Hold Priority to cast an <strong>instant</strong> (or flash spell) first — or Pass
+              Priority to let opponents respond.
             </p>
           </div>
         )}
 
-        {/* ── AI priority round (runs AFTER human passes) ── */}
-        {inAiPhase && (
+        {/* ── AI priority panel (pre-human or post-human) ── */}
+        {showAiPanel && (
           <div className="stack-priority-round">
             <div className="stack-priority-label">
-              {aiDone
+              {phase === "pre_human_ai"
+                ? "Players before you in priority order…"
+                : aiDone
                 ? "All opponents passed — resolving…"
                 : "Opponents considering response…"}
             </div>
             <div className="stack-ai-row">
               {aiStates.map((ai) => (
-                <div
-                  key={ai.playerId}
-                  className={`stack-ai-badge ${ai.decision}`}
-                >
+                <div key={ai.playerId} className={`stack-ai-badge ${ai.decision}`}>
                   <span className="stack-ai-name">{ai.name}</span>
                   <span className="stack-ai-decision">
                     {ai.decision === "thinking" && (
-                      <span className="stack-ai-thinking">
-                        Thinking{THINKING_DOTS[dotIdx]}
-                      </span>
+                      <span className="stack-ai-thinking">Thinking{THINKING_DOTS[dotIdx]}</span>
                     )}
                     {ai.decision === "pass" && (
                       <span className="stack-ai-pass">&#10003; Pass</span>
@@ -232,8 +285,8 @@ export function StackOverlay({ gameState, onStateChange, onHoldPriority }: Props
         {error && <p className="stack-error">{error}</p>}
 
         <p className="stack-rule-note">
-          Lands and mana abilities bypass the stack. Triggered abilities (When/Whenever/At)
-          and non-mana activated abilities do use it.
+          Lands and mana abilities bypass the stack. Triggered abilities (When/Whenever/At) and
+          non-mana activated abilities do use it.
         </p>
       </div>
     </div>

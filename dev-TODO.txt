@@ -7,14 +7,17 @@ cEDH Simulator — Dev TODO
 [x] Implement mana system (tap lands for mana, spend mana to cast)
 [x] make changes to the Game UI
 [x] Implement AI turn logic (basic priority-passing, land drop, spell casting)
-[ ] Stack visualization (spells/abilities on the stack)
+[x] Stack visualization (spells/abilities on the stack)
+[ ] fix cards clipping out of zones in battle UI
+[ ] implement building actual decklists from top players on edhtop16.com
+[ ] implement dev tools for bug troubleshooting
 [x] Display battlefield cards graphically (tapped/untapped state)
 [x] Draw a card at the start of each turn
 [ ] Implement combat (declare attackers/blockers, damage assignment)
 [ ] Game log improvements (show card names, phases, player actions)
+[ ] implement logic that follows and executes each card's specific rules
 [ ] Win condition detection (life total, commander damage, poison)
 [ ] Graveyard / exile zone display
 [x] implement player-field zoom-in
-[ ] implement casting spells
-[ ] implement logic that follows and executes each card's specific rules
+[x] implement casting spells
 [ ] implement Turn 0 logic
