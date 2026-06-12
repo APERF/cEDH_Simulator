@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query
 from app.models.schemas import DecklistInput
 from app.decks.parser import parse_decklist, validate_deck_size
 from app.cards.banned_list import ensure_loaded, is_banned
-from app.decks.edhtop16 import get_live_stats
+from app.decks.edhtop16 import get_live_stats, get_top_entries, fetch_topdeck_decklist
 from curl_cffi import requests as cffi_requests
 import json
 import os
@@ -63,6 +63,35 @@ async def deck_from_moxfield(url: str = Query(...)):
         raise HTTPException(status_code=502, detail=f"Moxfield returned {resp.status_code}")
     name, decklist = _format_moxfield_decklist(resp.json())
     return {"name": name, "decklist": decklist}
+
+
+@router.get("/from-edhtop16")
+async def deck_from_edhtop16(commander: str = Query(...)):
+    import asyncio
+    try:
+        entries = await asyncio.to_thread(get_top_entries, commander)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"edhtop16 API error: {str(e)}")
+
+    if not entries:
+        raise HTTPException(status_code=404, detail="No public top-cut entries found")
+
+    for entry in entries:
+        try:
+            decklist = await asyncio.to_thread(fetch_topdeck_decklist, entry["url"])
+        except Exception:
+            continue
+        if decklist:
+            return {
+                "name": f"{commander} ({entry['player']})",
+                "decklist": decklist,
+                "standing": entry["standing"],
+                "player": entry["player"],
+                "tournament": entry["tournament"],
+                "date": entry["date"],
+            }
+
+    raise HTTPException(status_code=404, detail="No public decklists found for this commander")
 
 
 @router.get("/meta")

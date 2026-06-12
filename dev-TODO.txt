@@ -9,8 +9,10 @@ cEDH Simulator — Dev TODO
 [x] Implement AI turn logic (basic priority-passing, land drop, spell casting)
 [x] Stack visualization (spells/abilities on the stack)
 [x] fix cards clipping out of zones in battle UI
-[ ] implement building actual decklists from top players on edhtop16.com
+[x] implement building actual decklists from top players on edhtop16.com
+[ ] implement slower AI playing and graphical changes
 [ ] refine AI mulligan decisions
+[ ] add a dev login and login function
 [ ] implement dev tools for bug troubleshooting
 [x] Display battlefield cards graphically (tapped/untapped state)
 [x] Draw a card at the start of each turn

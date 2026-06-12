@@ -69,6 +69,13 @@ export async function fetchMoxfieldDeck(
   return data;
 }
 
+export async function fetchEdhtop16Deck(
+  commander: string
+): Promise<{ name: string; decklist: string; standing: number; player: string; tournament: string }> {
+  const { data } = await api.get("/decks/from-edhtop16", { params: { commander } });
+  return data;
+}
+
 export async function searchCard(name: string) {
   const { data } = await api.get("/cards/search", { params: { name } });
   return data;

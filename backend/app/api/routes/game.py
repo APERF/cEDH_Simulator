@@ -15,6 +15,7 @@ from app.engine.mana_ability import parse_fetch_targets
 from app.engine.stack import StackObject
 from app.ai.base_ai import BaseAI
 from app.ai.archetypes.kinnan import KinnanAI
+from app.decks.edhtop16 import get_top_decklist
 
 _ARCHETYPE_MAP: dict[str, type] = {
     "Kinnan, Bonder Prodigy": KinnanAI,
@@ -136,25 +137,54 @@ async def new_game(request: NewGameRequest):
     players: list[Player] = [human]
     ai_commanders: list[Card] = []
 
-    for i, commander_name in enumerate(request.opponent_commanders[:3]):
+    import asyncio as _asyncio
+    opponent_names = request.opponent_commanders[:3]
+    live_raws = await _asyncio.gather(
+        *[_asyncio.to_thread(get_top_decklist, name) for name in opponent_names],
+        return_exceptions=True,
+    )
+
+    for i, commander_name in enumerate(opponent_names):
         ai_id = f"player_ai_{i}"
-        ai_deck = _deck_for_ai(commander_name, ai_id)
+        live_raw = live_raws[i] if not isinstance(live_raws[i], Exception) else None
+
+        if live_raw:
+            commander_names_in_deck = set(extract_commanders(live_raw))
+            ai_deck: list[Card] = []
+            live_cmds: list[Card] = []
+            for count, name in parse_decklist(live_raw):
+                for _ in range(count):
+                    card = _make_card(name, ai_id)
+                    if name in commander_names_in_deck:
+                        card.is_commander = True
+                        card.zone = Zone.COMMAND
+                        live_cmds.append(card)
+                    else:
+                        ai_deck.append(card)
+        else:
+            ai_deck = _deck_for_ai(commander_name, ai_id)
+            live_cmds = []
+
         ai = Player(player_id=ai_id, name=commander_name, is_human=False, deck=ai_deck)
 
-        # Support partner commanders stored as "Name1 / Name2"
-        partner_names = [n.strip() for n in commander_name.split(" / ")]
-        for pname in partner_names:
-            ai_cmd = _make_card(pname, ai_id)
-            ai_cmd.is_commander = True
-            ai_cmd.zone = Zone.COMMAND
-            ai.command_zone.add(ai_cmd)
-            ai_commanders.append(ai_cmd)
+        if live_cmds:
+            for cmd in live_cmds:
+                ai.command_zone.add(cmd)
+                ai_commanders.append(cmd)
+        else:
+            # Fallback: derive commanders from the name (supports "Name1 / Name2" partners)
+            for pname in [n.strip() for n in commander_name.split(" / ")]:
+                ai_cmd = _make_card(pname, ai_id)
+                ai_cmd.is_commander = True
+                ai_cmd.zone = Zone.COMMAND
+                ai.command_zone.add(ai_cmd)
+                ai_commanders.append(ai_cmd)
 
         ai.library.shuffle()
         ai.draw(7)
         ai.ai = _get_ai_class(commander_name)(ai)
 
-        # Populate Scryfall data for AI key cards so mana_cost/type_line/image_uri are set
+        # Populate Scryfall data for AI cards so mana_cost/type_line/image_uri are set
         all_ai_cards = list(ai.hand.cards) + list(ai.library._cards)
         unique_ai_names = list({c.name for c in all_ai_cards if c.name != "(Unknown Card)"})
         if unique_ai_names:

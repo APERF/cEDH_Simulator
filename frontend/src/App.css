@@ -146,12 +146,70 @@
   flex-direction: column;
   gap: 10px;
   flex: 1;
+  min-height: 0;
 }
 
 .deck-input textarea {
   flex: 1;
   min-height: 0;
   resize: none;
+}
+
+/* ── DeckInput Tabs ── */
+.di-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+  flex-shrink: 0;
+}
+
+.di-tab {
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.di-tab.active {
+  color: var(--gold);
+  border-bottom-color: var(--gold-border);
+}
+
+.di-tab:hover:not(.active) { color: var(--text); }
+
+.di-meta-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.di-meta-grid {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.meta-deck-card.loading {
+  border-color: var(--gold-border);
+  background: var(--gold-dim);
+  cursor: wait;
+  pointer-events: none;
+}
+
+.meta-deck-card.loading .dc-stats { color: var(--gold); }
+
+.meta-deck-card.dimmed {
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 .url-hint {
