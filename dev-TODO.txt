@@ -11,7 +11,7 @@ cEDH Simulator — Dev TODO
 [x] fix cards clipping out of zones in battle UI
 [x] implement building actual decklists from top players on edhtop16.com
 [x] implement slower AI playing and graphical changes
-[ ] refine AI mulligan decisions
+[x] refine AI mulligan decisions
 [ ] add a dev login and login function
 [ ] implement dev tools for bug troubleshooting
 [x] Display battlefield cards graphically (tapped/untapped state)

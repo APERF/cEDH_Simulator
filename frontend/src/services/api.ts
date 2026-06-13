@@ -34,6 +34,11 @@ export async function mulliganAction(
   return data;
 }
 
+export async function mulliganAiTurn(gameId: string): Promise<GameState> {
+  const { data } = await api.post(`/game/${gameId}/mulligan/ai_turn`);
+  return data;
+}
+
 export async function sendAction(
   gameId: string,
   action: GameAction

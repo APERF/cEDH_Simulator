@@ -15,6 +15,7 @@ from app.engine.mana_ability import parse_fetch_targets
 from app.engine.stack import StackObject
 from app.ai.base_ai import BaseAI
 from app.ai.archetypes.kinnan import KinnanAI
+from app.ai.mulligan import evaluate_hand, choose_bottom_cards, MAX_MULLIGANS
 from app.decks.edhtop16 import get_top_decklist
 
 _ARCHETYPE_MAP: dict[str, type] = {
@@ -231,26 +232,32 @@ async def mulligan_action(game_id: str, body: dict):
         raise HTTPException(status_code=400, detail="Not in mulligan phase")
 
     human = next(p for p in gs.players if p.is_human)
+    if gs.mulligan_current_player_id != human.id and gs.mulligan_phase != "selecting_bottom":
+        raise HTTPException(status_code=400, detail="Not your turn to decide")
+
     action = body.get("action")
 
     if action == "mulligan":
         if gs.mulligan_phase != "mulliganing":
             raise HTTPException(status_code=400, detail="Cannot mulligan now")
-        human.return_hand_to_library()
-        human.draw(7)
+        gs.mulligan_do_mulligan(human)
         new_names = [c.name for c in human.hand.cards if not c.image_uri]
         if new_names:
             images = await fetch_collection_images(new_names)
             for card in human.hand.cards:
                 if not card.image_uri:
                     card.image_uri = images.get(card.name)
-        gs.human_mulligan_count += 1
+        gs.log(f"You mulligan ({gs.human_mulligan_count})")
 
     elif action == "keep":
         if gs.mulligan_phase != "mulliganing":
             raise HTTPException(status_code=400, detail="Cannot keep now")
         if gs.cards_to_bottom == 0:
-            gs.mulligan_phase = "playing"
+            gs.mulligan_do_keep(human.id)
+            if gs.human_mulligan_count <= 1:
+                gs.log("You keep your opening hand")
+            else:
+                gs.log(f"You keep (after {gs.human_mulligan_count} mulligans)")
         else:
             gs.mulligan_phase = "selecting_bottom"
 
@@ -264,10 +271,52 @@ async def mulligan_action(game_id: str, body: dict):
                 detail=f"Must select exactly {gs.cards_to_bottom} card(s) to put on bottom",
             )
         human.put_on_bottom(card_ids)
-        gs.mulligan_phase = "playing"
+        gs.log(f"You keep {7 - gs.cards_to_bottom}, put {gs.cards_to_bottom} on bottom")
+        gs.mulligan_do_keep(human.id)
 
     else:
         raise HTTPException(status_code=400, detail="action must be 'mulligan', 'keep', or 'bottom'")
+
+    return gs.to_dict()
+
+
+@router.post("/{game_id}/mulligan/ai_turn", response_model=dict)
+async def mulligan_ai_turn(game_id: str):
+    """Advance one AI mulligan decision. Frontend calls this when it's an AI's turn."""
+    if game_id not in _sessions:
+        raise HTTPException(status_code=404, detail="Game not found")
+    gs = _sessions[game_id]
+    if gs.mulligan_phase not in ("mulliganing",):
+        raise HTTPException(status_code=400, detail="Not in mulligan phase")
+
+    current_id = gs.mulligan_current_player_id
+    if not current_id:
+        raise HTTPException(status_code=400, detail="Mulligan is already complete")
+
+    player = gs.get_player(current_id)
+    if not player or player.is_human:
+        raise HTTPException(status_code=400, detail="Current player is human — use /mulligan instead")
+
+    seat = next((i + 1 for i, p in enumerate(gs.players) if p.id == current_id), 1)
+    count = gs.mulligan_counts.get(current_id, 0)
+
+    # Hard cap: force keep after MAX_MULLIGANS regardless of hand quality
+    should_keep = count >= MAX_MULLIGANS or evaluate_hand(list(player.hand.cards), count, seat)
+
+    if should_keep:
+        cards_to_bottom = max(0, count - 1)
+        if cards_to_bottom > 0:
+            bottom_ids = choose_bottom_cards(list(player.hand.cards), cards_to_bottom)
+            player.put_on_bottom(bottom_ids)
+            gs.log(f"{player.name} keeps {7 - cards_to_bottom}, puts {cards_to_bottom} on bottom")
+        elif count == 0:
+            gs.log(f"{player.name} keeps opening 7")
+        else:
+            gs.log(f"{player.name} keeps 7 (free mulligan)")
+        gs.mulligan_do_keep(current_id)
+    else:
+        gs.mulligan_do_mulligan(player)
+        gs.log(f"{player.name} mulligans ({gs.mulligan_counts[current_id]})")
 
     return gs.to_dict()
 

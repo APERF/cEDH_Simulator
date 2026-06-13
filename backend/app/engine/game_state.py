@@ -40,9 +40,10 @@ class GameState:
         self.stack = Stack()
         self.winner: Optional[str] = None
         self.game_log: list[str] = []
-        # Mulligan state (human player only; AI auto-keeps)
+        # Mulligan state — seat-ordered queue; each player decides in turn, keepers leave the queue
         self.mulligan_phase: str = "mulliganing"  # "mulliganing" | "selecting_bottom" | "playing"
-        self.human_mulligan_count: int = 0
+        self.mulligan_active: list[str] = [p.id for p in players]   # IDs in decision order
+        self.mulligan_counts: dict[str, int] = {p.id: 0 for p in players}
         self.ai_land_pause: bool = False  # True after AI land drop; holds the step so casting gets a separate turn
 
     @property
@@ -135,10 +136,36 @@ class GameState:
     def log(self, message: str) -> None:
         self.game_log.append(message)
 
+    # ── Mulligan queue helpers ────────────────────────────────────────────────
+
+    @property
+    def mulligan_current_player_id(self) -> Optional[str]:
+        return self.mulligan_active[0] if self.mulligan_active else None
+
+    @property
+    def human_mulligan_count(self) -> int:
+        human = next((p for p in self.players if p.is_human), None)
+        return self.mulligan_counts.get(human.id, 0) if human else 0
+
     @property
     def cards_to_bottom(self) -> int:
         """Cards the human must put on the bottom when keeping (first mulligan free)."""
         return max(0, self.human_mulligan_count - 1)
+
+    def mulligan_do_mulligan(self, player: Player) -> None:
+        """Rotate player to the back of the queue and redraw 7."""
+        if player.id in self.mulligan_active:
+            self.mulligan_active.remove(player.id)
+            self.mulligan_active.append(player.id)
+        self.mulligan_counts[player.id] = self.mulligan_counts.get(player.id, 0) + 1
+        player.return_hand_to_library()
+        player.draw(7)
+
+    def mulligan_do_keep(self, player_id: str) -> None:
+        """Remove player from the queue; set phase to 'playing' when queue is empty."""
+        if player_id in self.mulligan_active:
+            self.mulligan_active.remove(player_id)
+        self.mulligan_phase = "playing" if not self.mulligan_active else "mulliganing"
 
     def to_dict(self) -> dict:
         return {
@@ -146,6 +173,9 @@ class GameState:
             "mulligan_phase": self.mulligan_phase,
             "mulligan_count": self.human_mulligan_count,
             "cards_to_bottom": self.cards_to_bottom,
+            "mulligan_current_player_id": self.mulligan_current_player_id,
+            "mulligan_active_player_ids": list(self.mulligan_active),
+            "mulligan_counts": dict(self.mulligan_counts),
             "turn": self.turn,
             "active_player_id": self.active_player.id,
             "phase": self.phase.value,

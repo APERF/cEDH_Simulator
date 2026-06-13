@@ -149,6 +149,9 @@ export interface GameState {
   mulligan_phase: "mulliganing" | "selecting_bottom" | "playing";
   mulligan_count: number;
   cards_to_bottom: number;
+  mulligan_current_player_id: string | null;
+  mulligan_active_player_ids: string[];
+  mulligan_counts: Record<string, number>;
   turn: number;
   active_player_id: string;
   phase: Phase;
