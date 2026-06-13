@@ -3,10 +3,14 @@ import { useGameStore } from "../../store/gameStore";
 import { PlayerPanel } from "./PlayerPanel";
 import { FetchModal } from "./FetchModal";
 import { sendAction, getGameState } from "../../services/api";
-import type { FetchOption } from "../../types/game";
+import type { FetchOption, GameState } from "../../types/game";
 
-export function Board() {
-  const { gameState, gameId, setGameState, setLoading, appendLog } = useGameStore();
+interface Props {
+  onStateChange: (gs: GameState) => void;
+}
+
+export function Board({ onStateChange }: Props) {
+  const { gameState, gameId, setLoading, appendLog } = useGameStore();
   const [fetchModal, setFetchModal] = useState<FetchOption[] | null>(null);
 
   if (!gameState) {
@@ -23,7 +27,7 @@ export function Board() {
     try {
       const result = await sendAction(gameId, { type: "cast_commander", card_id: cardId });
       appendLog(result.log);
-      setGameState(await getGameState(gameId));
+      onStateChange(await getGameState(gameId));
     } finally {
       setLoading(false);
     }
@@ -46,7 +50,7 @@ export function Board() {
       if (result.status === "fetch" && result.fetch_options) {
         setFetchModal(result.fetch_options);
       } else {
-        setGameState(await getGameState(gameId));
+        onStateChange(await getGameState(gameId));
       }
     } finally {
       setLoading(false);
@@ -60,7 +64,7 @@ export function Board() {
       const result = await sendAction(gameId, { type: "complete_fetch", card_id: cardId });
       appendLog(result.log);
       setFetchModal(null);
-      setGameState(await getGameState(gameId));
+      onStateChange(await getGameState(gameId));
     } finally {
       setLoading(false);
     }
@@ -76,7 +80,7 @@ export function Board() {
         ...(color ? { color } : {}),
       });
       appendLog(result.log);
-      setGameState(await getGameState(gameId));
+      onStateChange(await getGameState(gameId));
     } finally {
       setLoading(false);
     }

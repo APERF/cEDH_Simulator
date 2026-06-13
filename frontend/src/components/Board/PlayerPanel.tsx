@@ -225,7 +225,7 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
 
       {/* Main zone layout: Command Zone | Battlefield | Library/GY/Exile */}
       <div className="pp-body">
-        <div className="pp-command-zone">
+        <div className="pp-command-zone" data-cmdzone={player.id}>
           <div className="zone-label">Cmd Zone</div>
           {commandZoneCommanders.length === 0 ? (
             <div className="cz-empty">—</div>
@@ -273,6 +273,7 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
                   {(player.permanents ?? []).filter(c => !c.type_line?.toLowerCase().includes("artifact")).map((card: BattlefieldCard) => (
                     <div
                       key={card.id}
+                      data-bf-card={card.id}
                       className={`bf-land-card${card.tapped ? " tapped" : ""}`}
                     >
                       {card.image_uri ? (
@@ -307,6 +308,7 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
                       return (
                         <div
                           key={land.id}
+                          data-bf-card={land.id}
                           className={`bf-land-card${land.tapped ? " tapped" : ""}${canInteract && !land.tapped ? " tappable" : ""}${canInteract && land.tapped ? " untappable" : ""}`}
                           onClick={(e) => handleLandClick(land, e)}
                         >
@@ -340,6 +342,7 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
                     {(player.permanents ?? []).filter(c => c.type_line?.toLowerCase().includes("artifact")).map((card: BattlefieldCard) => (
                       <div
                         key={card.id}
+                        data-bf-card={card.id}
                         className={`bf-land-card${card.tapped ? " tapped" : ""}`}
                       >
                         {card.image_uri ? (
@@ -399,7 +402,7 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
 
       {/* Human player hand: card images */}
       {player.is_human && (player.hand ?? []).length > 0 && (
-        <div className="pp-hand">
+        <div className="pp-hand" data-hand={player.id}>
           <div className="zone-label">Hand ({player.hand.length})</div>
           <button className="bf-fullscreen-btn" onClick={() => setFullscreen(true)} title="Fullscreen battlefield">⛶</button>
           <div className="pp-hand-cards">
@@ -437,7 +440,7 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
 
       {/* AI hand: face-down card backs */}
       {!player.is_human && player.hand_size > 0 && (
-        <div className="pp-ai-hand">
+        <div className="pp-ai-hand" data-hand={player.id}>
           <div className="zone-label">Hand ({player.hand_size})</div>
           <button className="bf-fullscreen-btn" onClick={() => setFullscreen(true)} title="Fullscreen battlefield">⛶</button>
           <div className="ai-hand-cards">

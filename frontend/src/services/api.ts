@@ -49,6 +49,13 @@ export async function advanceAiTurn(
   return data;
 }
 
+export async function advanceAiStep(
+  gameId: string
+): Promise<{ status: string; log: string[]; is_human_turn: boolean }> {
+  const { data } = await api.post(`/game/${gameId}/ai-step`);
+  return data;
+}
+
 export async function listMetaDecks(): Promise<MetaDeck[]> {
   const { data } = await api.get("/decks/meta");
   return data.decks;

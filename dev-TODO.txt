@@ -10,7 +10,7 @@ cEDH Simulator — Dev TODO
 [x] Stack visualization (spells/abilities on the stack)
 [x] fix cards clipping out of zones in battle UI
 [x] implement building actual decklists from top players on edhtop16.com
-[ ] implement slower AI playing and graphical changes
+[x] implement slower AI playing and graphical changes
 [ ] refine AI mulligan decisions
 [ ] add a dev login and login function
 [ ] implement dev tools for bug troubleshooting
@@ -25,3 +25,4 @@ cEDH Simulator — Dev TODO
 [x] implement player-field zoom-in
 [x] implement casting spells
 [ ] implement Turn 0 logic
+[ ] check why AI lands come into play tapped

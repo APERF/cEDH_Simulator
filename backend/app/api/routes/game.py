@@ -579,3 +579,27 @@ async def ai_turn(game_id: str):
     log_before = len(gs.game_log)
     gs.advance_ai_turns_until_human(human.id)
     return {"status": "ok", "log": gs.game_log[log_before:]}
+
+
+@router.post("/{game_id}/ai-step", response_model=dict)
+async def ai_step(game_id: str):
+    """Advance exactly one game step for the current AI player."""
+    if game_id not in _sessions:
+        raise HTTPException(status_code=404, detail="Game not found")
+    gs = _sessions[game_id]
+    human = next((p for p in gs.players if p.is_human), None)
+    if not human:
+        return {"status": "ok", "log": [], "is_human_turn": True}
+    if gs.active_player.id == human.id:
+        return {"status": "ok", "log": [], "is_human_turn": True}
+    if not gs.stack.is_empty:
+        return {"status": "ok", "log": [], "is_human_turn": False}
+    log_before = len(gs.game_log)
+    gs.advance_step()
+    new_log = gs.game_log[log_before:]
+    is_human_turn = (
+        gs.active_player.id == human.id
+        or not gs.stack.is_empty
+        or gs.winner is not None
+    )
+    return {"status": "ok", "log": new_log, "is_human_turn": is_human_turn}

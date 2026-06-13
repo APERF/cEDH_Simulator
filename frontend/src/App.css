@@ -379,6 +379,7 @@
 
 /* ── Phase Bar ── */
 .phase-bar {
+  position: relative;
   display: flex;
   align-items: center;
   height: 46px;
@@ -1350,6 +1351,54 @@
 .stack-card--top .stack-card-text {
   outline: 2px solid var(--gold-light);
   border-radius: 8px;
+}
+
+/* ── AI Thinking Banner ── */
+.ai-thinking-banner {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px 5px 12px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  backdrop-filter: blur(6px);
+  font-size: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.ai-thinking-name {
+  color: var(--accent);
+  font-weight: 600;
+}
+.ai-thinking-label {
+  color: var(--text-dim);
+}
+.ai-thinking-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.ai-thinking-dots span {
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: ai-dot-bounce 1.1s ease-in-out infinite;
+}
+.ai-thinking-dots span:nth-child(2) { animation-delay: 0.18s; }
+.ai-thinking-dots span:nth-child(3) { animation-delay: 0.36s; }
+
+@keyframes ai-dot-bounce {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30%            { opacity: 1;    transform: translateY(-3px); }
 }
 
 /* ── Hold Priority Banner ── */
