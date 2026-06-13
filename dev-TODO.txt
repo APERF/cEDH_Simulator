@@ -26,3 +26,5 @@ cEDH Simulator — Dev TODO
 [x] implement casting spells
 [ ] implement Turn 0 logic
 [ ] check why AI lands come into play tapped
+[ ] test AI to make sure they play after turn 1
+[ ] fix UI hover sticking on Stack UI

@@ -43,6 +43,7 @@ class GameState:
         # Mulligan state (human player only; AI auto-keeps)
         self.mulligan_phase: str = "mulliganing"  # "mulliganing" | "selecting_bottom" | "playing"
         self.human_mulligan_count: int = 0
+        self.ai_land_pause: bool = False  # True after AI land drop; holds the step so casting gets a separate turn
 
     @property
     def active_player(self) -> Player:
@@ -61,6 +62,11 @@ class GameState:
         self.check_state_based_actions()
         # If the step put spells on the stack, pause here so players get priority.
         if not self.stack.is_empty:
+            return
+        # AI played a land this step — hold here so the frontend thinking timer
+        # fires before the next advance_step call that will do the casting.
+        if self.ai_land_pause:
+            self.ai_land_pause = False
             return
         idx = _STEP_SEQUENCE.index(self.step)
         if idx == len(_STEP_SEQUENCE) - 1:

@@ -45,6 +45,8 @@ class BaseAI(ABC):
                 player.battlefield.add(playable)
                 player.land_played_this_turn = True
                 game_state.log(f"{player.name} plays {playable.name}")
+                game_state.ai_land_pause = True
+                return  # pause here; casting happens on the next advance_step call
 
         # Tap all untapped lands for mana
         for land in player.battlefield.permanents:
