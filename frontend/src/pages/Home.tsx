@@ -35,7 +35,7 @@ function UserMenu() {
     localStorage.removeItem("access_token");
     localStorage.removeItem("username");
     localStorage.removeItem("role");
-    navigate("/login");
+    navigate("/");
   }
 
   if (!username) return <Link to="/login">Login</Link>;

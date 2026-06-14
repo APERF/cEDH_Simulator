@@ -11,6 +11,7 @@ interface Props {
   onCastCommander: (cardId: string) => void;
   onPlayCard: (cardId: string, actionType: "play_land" | "cast_spell", opts?: { payLife?: boolean }) => void;
   onTapLand: (cardId: string, color?: string, untap?: boolean) => void;
+  aiHandCards?: HandCard[];
 }
 
 const MANA_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
@@ -167,7 +168,7 @@ function GraveyardModal({ cards, playerName, zoneName = "Graveyard", onClose }: 
   );
 }
 
-export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCastCommander, onPlayCard, onTapLand }: Props) {
+export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCastCommander, onPlayCard, onTapLand, aiHandCards }: Props) {
   const [hovered, setHovered] = useState<{ card: HandCard | CommanderCard | LandCard | BattlefieldCard; rect: DOMRect } | null>(null);
   const [colorPicker, setColorPicker] = useState<{ landId: string; produces: string[]; anchor: DOMRect } | null>(null);
   const [shockPrompt, setShockPrompt] = useState<{ cardId: string; name: string } | null>(null);
@@ -438,19 +439,41 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
         </div>
       )}
 
-      {/* AI hand: face-down card backs */}
+      {/* AI hand: revealed card images in dev mode, face-down card backs normally */}
       {!player.is_human && player.hand_size > 0 && (
         <div className="pp-ai-hand" data-hand={player.id}>
-          <div className="zone-label">Hand ({player.hand_size})</div>
-          <button className="bf-fullscreen-btn" onClick={() => setFullscreen(true)} title="Fullscreen battlefield">⛶</button>
-          <div className="ai-hand-cards">
-            {Array.from({ length: Math.min(player.hand_size, 12) }).map((_, i) => (
-              <div key={i} className="ai-card-back" />
-            ))}
-            {player.hand_size > 12 && (
-              <span className="ai-hand-more">+{player.hand_size - 12}</span>
-            )}
+          <div className="zone-label">
+            Hand ({player.hand_size})
+            {aiHandCards && <span className="hand-revealed-tag">revealed</span>}
           </div>
+          <button className="bf-fullscreen-btn" onClick={() => setFullscreen(true)} title="Fullscreen battlefield">⛶</button>
+          {aiHandCards && aiHandCards.length > 0 ? (
+            <div className="pp-hand-cards">
+              {aiHandCards.map((card) => (
+                <div
+                  key={card.id}
+                  className="hand-card-wrap dev-revealed"
+                  onMouseEnter={(e) => setHovered({ card, rect: e.currentTarget.getBoundingClientRect() })}
+                  onMouseLeave={() => setHovered(null)}
+                >
+                  {card.image_uri ? (
+                    <img src={card.image_uri} alt={card.name} className="hand-card-img" />
+                  ) : (
+                    <div className="hand-card">{card.name}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="ai-hand-cards">
+              {Array.from({ length: Math.min(player.hand_size, 12) }).map((_, i) => (
+                <div key={i} className="ai-card-back" />
+              ))}
+              {player.hand_size > 12 && (
+                <span className="ai-hand-more">+{player.hand_size - 12}</span>
+              )}
+            </div>
+          )}
         </div>
       )}
 

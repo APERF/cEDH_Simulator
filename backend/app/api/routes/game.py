@@ -223,6 +223,14 @@ async def get_game_state(game_id: str):
     return _sessions[game_id].to_dict()
 
 
+@router.get("/{game_id}/debug", response_model=dict)
+async def get_debug_state(game_id: str):
+    """Returns full game state with AI hands revealed and AI decision log."""
+    if game_id not in _sessions:
+        raise HTTPException(status_code=404, detail="Game not found")
+    return _sessions[game_id].to_dict(include_ai_hands=True)
+
+
 @router.post("/{game_id}/mulligan", response_model=dict)
 async def mulligan_action(game_id: str, body: dict):
     if game_id not in _sessions:

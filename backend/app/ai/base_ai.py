@@ -45,6 +45,7 @@ class BaseAI(ABC):
                 player.battlefield.add(playable)
                 player.land_played_this_turn = True
                 game_state.log(f"{player.name} plays {playable.name}")
+                self._log_decision(game_state, "play_land", card=playable.name)
                 game_state.ai_land_pause = True
                 return  # pause here; casting happens on the next advance_step call
 
@@ -82,6 +83,7 @@ class BaseAI(ABC):
                     resolve_fn=_make_cmd_resolve(cmd, player),
                 ))
                 game_state.log(f"{player.name} casts {cmd.name} from command zone")
+                self._log_decision(game_state, "cast_commander", card=cmd.name, card_cost=cmd.mana_cost)
                 return  # one spell per priority window; let the stack resolve before casting again
 
         # Cast one affordable spell from hand (lowest CMC first) — one spell per priority window
@@ -94,9 +96,11 @@ class BaseAI(ABC):
             key=lambda c: c.cmc,
         )
         if not castable:
+            self._log_decision(game_state, "pass")
             return
         card = castable[0]
         if not pay(player.mana_pool, parse_cost(card.mana_cost)):
+            self._log_decision(game_state, "pass", reason="pay() failed unexpectedly")
             return
         player.hand.remove(card.id)
         card.zone = Zone.STACK
@@ -124,6 +128,7 @@ class BaseAI(ABC):
             resolve_fn=_make_resolve_fn(card, player, is_permanent),
         ))
         game_state.log(f"{player.name} casts {card.name}")
+        self._log_decision(game_state, "cast_spell", card=card.name, card_cost=card.mana_cost)
 
     def should_counter(self, game_state: GameState, spell_name: str, caster_id: str) -> bool:
         return False
@@ -133,3 +138,40 @@ class BaseAI(ABC):
 
     def _log(self, message: str) -> list[str]:
         return [f"[{self.archetype_name}] {message}"]
+
+    # ── Dev / debug helpers ───────────────────────────────────────────────────
+
+    def _pool_dict(self) -> dict:
+        p = self.player.mana_pool
+        return {"W": p.W, "U": p.U, "B": p.B, "R": p.R, "G": p.G, "C": p.C, "total": p.total()}
+
+    def _hand_snapshot(self) -> list[dict]:
+        pool = self.player.mana_pool
+        return [
+            {
+                "name": c.name,
+                "cost": c.mana_cost or "",
+                "is_land": c.is_land,
+                "affordable": (
+                    not c.is_land
+                    and bool(c.mana_cost)
+                    and can_pay(pool, parse_cost(c.mana_cost))
+                ),
+            }
+            for c in self.player.hand.cards
+        ]
+
+    def _log_decision(self, game_state: "GameState", action: str, **kwargs) -> None:
+        entry = {
+            "turn": game_state.turn,
+            "step": game_state.step.value,
+            "player": self.player.name,
+            "player_id": self.player.id,
+            "action": action,
+            "mana": self._pool_dict(),
+            "hand": self._hand_snapshot(),
+        }
+        entry.update(kwargs)
+        game_state.ai_decision_log.append(entry)
+        if len(game_state.ai_decision_log) > 200:
+            game_state.ai_decision_log.pop(0)

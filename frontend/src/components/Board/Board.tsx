@@ -3,13 +3,14 @@ import { useGameStore } from "../../store/gameStore";
 import { PlayerPanel } from "./PlayerPanel";
 import { FetchModal } from "./FetchModal";
 import { sendAction, getGameState } from "../../services/api";
-import type { FetchOption, GameState } from "../../types/game";
+import type { FetchOption, GameState, HandCard } from "../../types/game";
 
 interface Props {
   onStateChange: (gs: GameState) => void;
+  aiHandsMap?: Record<string, HandCard[]>;
 }
 
-export function Board({ onStateChange }: Props) {
+export function Board({ onStateChange, aiHandsMap }: Props) {
   const { gameState, gameId, setLoading, appendLog } = useGameStore();
   const [fetchModal, setFetchModal] = useState<FetchOption[] | null>(null);
 
@@ -113,6 +114,7 @@ export function Board({ onStateChange }: Props) {
             onCastCommander={handleCastCommander}
             onPlayCard={handlePlayCard}
             onTapLand={handleTapLand}
+            aiHandCards={aiHandsMap?.[p.id]}
           />
         ) : (
           <div key={i} className="seat-empty" />

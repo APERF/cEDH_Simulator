@@ -40,6 +40,7 @@ class GameState:
         self.stack = Stack()
         self.winner: Optional[str] = None
         self.game_log: list[str] = []
+        self.ai_decision_log: list[dict] = []
         # Mulligan state — seat-ordered queue; each player decides in turn, keepers leave the queue
         self.mulligan_phase: str = "mulliganing"  # "mulliganing" | "selecting_bottom" | "playing"
         self.mulligan_active: list[str] = [p.id for p in players]   # IDs in decision order
@@ -167,7 +168,7 @@ class GameState:
             self.mulligan_active.remove(player_id)
         self.mulligan_phase = "playing" if not self.mulligan_active else "mulliganing"
 
-    def to_dict(self) -> dict:
+    def to_dict(self, include_ai_hands: bool = False) -> dict:
         return {
             "game_id": self.game_id,
             "mulligan_phase": self.mulligan_phase,
@@ -274,7 +275,7 @@ class GameState:
                             ),
                         }
                         for c in p.hand.cards
-                    ] if p.is_human else [],
+                    ] if p.is_human or include_ai_hands else [],
                     "commanders": [
                         {
                             "id": c.id,
@@ -290,4 +291,5 @@ class GameState:
                 }
                 for i, p in enumerate(self.players)
             ],
+            "ai_decision_log": self.ai_decision_log[-50:] if include_ai_hands else [],
         }

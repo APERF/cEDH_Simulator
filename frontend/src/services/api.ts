@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { GameState, MetaDeck, GameAction } from "../types/game";
+import type { GameState, DebugGameState, MetaDeck, GameAction } from "../types/game";
 
 const api = axios.create({ baseURL: "http://localhost:8000/api" });
 
@@ -19,6 +19,11 @@ export async function createGame(
 
 export async function getGameState(gameId: string): Promise<GameState> {
   const { data } = await api.get(`/game/${gameId}`);
+  return data;
+}
+
+export async function getDebugState(gameId: string): Promise<DebugGameState> {
+  const { data } = await api.get(`/game/${gameId}/debug`);
   return data;
 }
 

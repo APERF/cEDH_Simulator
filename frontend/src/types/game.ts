@@ -162,6 +162,30 @@ export interface GameState {
   winner: string | null;
 }
 
+export interface AIDecisionHandCard {
+  name: string;
+  cost: string;
+  is_land: boolean;
+  affordable: boolean;
+}
+
+export interface AIDecision {
+  turn: number;
+  step: string;
+  player: string;
+  player_id: string;
+  action: "play_land" | "cast_spell" | "cast_commander" | "pass";
+  card?: string;
+  card_cost?: string;
+  reason?: string;
+  mana: { W: number; U: number; B: number; R: number; G: number; C: number; total: number };
+  hand: AIDecisionHandCard[];
+}
+
+export interface DebugGameState extends GameState {
+  ai_decision_log: AIDecision[];
+}
+
 export interface MetaDeck {
   id: string;
   commander: string;

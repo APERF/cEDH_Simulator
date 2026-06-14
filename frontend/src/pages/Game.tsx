@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState, Fragment } from "react";
+import { useEffect, useRef, useState, useMemo, Fragment } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { useParams, Link } from "react-router-dom";
 import { Board } from "../components/Board/Board";
 import { MulliganPhase } from "../components/MulliganPhase/MulliganPhase";
 import { StackOverlay } from "../components/StackOverlay/StackOverlay";
+import { DevTools } from "../components/DevTools/DevTools";
 import { useGameStore } from "../store/gameStore";
-import { getGameState, sendAction, advanceAiStep } from "../services/api";
-import type { GameState } from "../types/game";
+import { getGameState, getDebugState, sendAction, advanceAiStep } from "../services/api";
+import type { GameState, DebugGameState, HandCard } from "../types/game";
 
 const STEP_ORDER = [
   "untap", "upkeep", "draw", "precombat_main",
@@ -38,8 +39,10 @@ const PHASE_GROUPS = [
   { label: "Ending", steps: ["end", "cleanup"] },
 ];
 
-function stepDelay(): number {
-  return 3000 + Math.random() * 2000; // 3 – 5 s
+const SPEED_DELAY_MS = 400;
+
+function stepDelay(speedMode: boolean): number {
+  return speedMode ? SPEED_DELAY_MS : 3000 + Math.random() * 2000; // 3 – 5 s normal, ~400ms speed mode
 }
 
 function sleep(ms: number) {
@@ -168,6 +171,13 @@ export function Game() {
   const [aiThinking, setAiThinking] = useState(false);
   const [aiThinkingName, setAiThinkingName] = useState("");
   const [flyingCards, setFlyingCards] = useState<FlyingCard[]>([]);
+  const [devPanelOpen, setDevPanelOpen] = useState(false);
+  const [speedMode, setSpeedMode] = useState(false);
+  const [debugState, setDebugState] = useState<DebugGameState | null>(null);
+  const [debugLoading, setDebugLoading] = useState(false);
+  const speedModeRef = useRef(false);
+  const debugIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isDevUser = localStorage.getItem("role") === "dev";
   const aiLoopActiveRef = useRef(false);
   const prevStackTopIdRef = useRef<string | null>(null);
   const prevStateRef = useRef<GameState | null>(null);
@@ -235,6 +245,37 @@ export function Game() {
     if (gameState) prevStateRef.current = gameState;
   }, [gameState]);
 
+  // Keep speedModeRef in sync so runAiStepLoop reads the latest value
+  useEffect(() => { speedModeRef.current = speedMode; }, [speedMode]);
+
+  // Poll debug state (AI hands + decision log) while the dev panel is open
+  useEffect(() => {
+    if (!devPanelOpen || !gameId) {
+      if (debugIntervalRef.current) { clearInterval(debugIntervalRef.current); debugIntervalRef.current = null; }
+      if (!devPanelOpen) setDebugState(null);
+      return;
+    }
+    async function fetchDebug() {
+      if (!gameId) return;
+      setDebugLoading(true);
+      try { setDebugState(await getDebugState(gameId)); } catch { /* ignore */ }
+      finally { setDebugLoading(false); }
+    }
+    fetchDebug();
+    debugIntervalRef.current = setInterval(fetchDebug, 3000);
+    return () => { if (debugIntervalRef.current) { clearInterval(debugIntervalRef.current); debugIntervalRef.current = null; } };
+  }, [devPanelOpen, gameId]);
+
+  // Build playerId→hand map from debug state so Board can reveal AI hands
+  const aiHandsMap = useMemo<Record<string, HandCard[]> | undefined>(() => {
+    if (!devPanelOpen || !debugState) return undefined;
+    const map: Record<string, HandCard[]> = {};
+    for (const p of debugState.players) {
+      if (!p.is_human && p.hand.length > 0) map[p.id] = p.hand;
+    }
+    return Object.keys(map).length > 0 ? map : undefined;
+  }, [devPanelOpen, debugState]);
+
   // Stop the AI loop on unmount
   useEffect(() => {
     return () => { aiLoopActiveRef.current = false; };
@@ -264,7 +305,7 @@ export function Game() {
 
     try {
       while (aiLoopActiveRef.current) {
-        await sleep(stepDelay());
+        await sleep(stepDelay(speedModeRef.current));
         if (!aiLoopActiveRef.current) break;
 
         const result = await advanceAiStep(id);
@@ -368,6 +409,15 @@ export function Game() {
               {isLoading ? "..." : "Move Phases"}
             </button>
             <Link to="/"><button className="pb-btn">&#x2190; New Game</button></Link>
+            {isDevUser && (
+              <button
+                className={`pb-btn pb-dev-btn${devPanelOpen ? " active" : ""}`}
+                onClick={() => setDevPanelOpen(o => !o)}
+                title="Toggle dev tools"
+              >
+                {speedMode ? "⚡ DEV" : "DEV"}
+              </button>
+            )}
           </div>
 
           <div className="pb-steps">
@@ -415,7 +465,7 @@ export function Game() {
             <MulliganPhase gameState={gameState} onStateChange={applyNewState} />
           ) : (
             <>
-              <Board onStateChange={applyNewState} />
+              <Board onStateChange={applyNewState} aiHandsMap={aiHandsMap} />
 
               {gameState && (gameState.stack ?? []).length > 0 && holdingPriority && (
                 <div className="hold-priority-banner">
@@ -450,6 +500,20 @@ export function Game() {
 
           {!sidebarCollapsed && (
             <>
+              {devPanelOpen && (
+                <DevTools
+                  debugState={debugState}
+                  loading={debugLoading}
+                  onRefresh={async () => {
+                    if (!gameId) return;
+                    setDebugLoading(true);
+                    try { setDebugState(await getDebugState(gameId)); } catch { /* ignore */ }
+                    finally { setDebugLoading(false); }
+                  }}
+                  speedMode={speedMode}
+                  onSpeedModeToggle={() => setSpeedMode(m => !m)}
+                />
+              )}
               <div className="game-log">
                 <h3>Game Log</h3>
                 <div className="log-entries">

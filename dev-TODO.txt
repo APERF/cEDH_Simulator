@@ -13,7 +13,7 @@ cEDH Simulator — Dev TODO
 [x] implement slower AI playing and graphical changes
 [x] refine AI mulligan decisions
 [x] add a dev login and login function
-[ ] implement dev tools for bug troubleshooting
+[x] implement dev tools for bug troubleshooting
 [x] Display battlefield cards graphically (tapped/untapped state)
 [x] Draw a card at the start of each turn
 [ ] Implement combat (declare attackers/blockers, damage assignment)
@@ -29,3 +29,4 @@ cEDH Simulator — Dev TODO
 [ ] test AI to make sure they play after turn 1
 [ ] fix UI hover sticking on Stack UI
 [ ] add AI Mana Pools and reimagine Mana Pool UI
+[ ] turn UI to be fully Reactive
