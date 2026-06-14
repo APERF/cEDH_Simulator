@@ -92,3 +92,11 @@ export async function searchCard(name: string) {
   const { data } = await api.get("/cards/search", { params: { name } });
   return data;
 }
+
+export async function loginUser(
+  username: string,
+  password: string
+): Promise<{ access_token: string; token_type: string; username: string; role: string }> {
+  const { data } = await api.post("/auth/login", { username, password });
+  return data;
+}

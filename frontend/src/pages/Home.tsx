@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { listMetaDecks, createGame } from "../services/api";
 import { DeckInput } from "../components/DeckInput/DeckInput";
@@ -13,6 +13,43 @@ function ColorPips({ colors }: { colors: string[] }) {
   return (
     <div className="color-pips">
       {ordered.map((c) => <span key={c} className={`pip pip-${c}`} />)}
+    </div>
+  );
+}
+
+function UserMenu() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const username = localStorage.getItem("username");
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function logout() {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("username");
+    localStorage.removeItem("role");
+    navigate("/login");
+  }
+
+  if (!username) return <Link to="/login">Login</Link>;
+
+  return (
+    <div className="user-menu" ref={ref}>
+      <button className="user-menu-trigger" onClick={() => setOpen((o) => !o)}>
+        Hello, <span className="user-menu-name">{username}</span>
+      </button>
+      {open && (
+        <div className="user-menu-dropdown">
+          <button onClick={logout}>Logout</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -61,7 +98,7 @@ export function Home() {
     <header className="app-header">
       <Link to="/" className="app-logo">cEDH Simulator</Link>
       <nav>
-        <Link to="/">Setup</Link>
+        <UserMenu />
       </nav>
     </header>
     <div className="home">
