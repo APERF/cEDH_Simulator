@@ -347,6 +347,16 @@ async def player_action(game_id: str, action: dict):
         elif gs.active_player.is_human:
             # Stack is empty — advance the phase (only valid on human's turn)
             gs.advance_step()
+            # Auto-chain through BEGIN_COMBAT into DECLARE_ATTACKERS processing so
+            # the player only needs one click to reach the combat UI.
+            if (gs.step == Step.BEGIN_COMBAT
+                    and gs.stack.is_empty
+                    and not gs.winner):
+                gs.advance_step()  # BEGIN_COMBAT → DECLARE_ATTACKERS
+            if (gs.step == Step.DECLARE_ATTACKERS
+                    and not gs.combat_awaiting_human_action
+                    and gs.stack.is_empty):
+                gs.advance_step()  # process DECLARE_ATTACKERS (sets the flag)
         else:
             return {"status": "ok", "log": []}
         return {"status": "ok", "log": gs.game_log[log_before:]}
@@ -388,6 +398,7 @@ async def player_action(game_id: str, action: dict):
         def _commander_resolve(game_state, cmd=commander, player=human):
             cmd.zone = Zone.BATTLEFIELD
             cmd.tapped = False
+            cmd.entered_turn = game_state.turn
             player.battlefield.add(cmd)
 
         gs.stack.push(StackObject(
@@ -463,6 +474,7 @@ async def player_action(game_id: str, action: dict):
             card.tapped = False
 
         card.zone = Zone.BATTLEFIELD
+        card.entered_turn = gs.turn
         human.battlefield.add(card)
         msg = f"{human.name} plays {card.name}"
         gs.log(msg)
@@ -483,6 +495,7 @@ async def player_action(game_id: str, action: dict):
         human.library._cards.remove(land)
         land.zone = Zone.BATTLEFIELD
         land.tapped = True  # fetched lands always enter tapped
+        land.entered_turn = gs.turn
         human.battlefield.add(land)
         human.library.shuffle()
 
@@ -535,6 +548,7 @@ async def player_action(game_id: str, action: dict):
                 if permanent:
                     c.zone = Zone.BATTLEFIELD
                     c.tapped = False
+                    c.entered_turn = game_state.turn
                     player.battlefield.add(c)
                 else:
                     c.zone = Zone.GRAVEYARD
@@ -597,6 +611,70 @@ async def player_action(game_id: str, action: dict):
         gs.log(msg)
         return {"status": "ok", "log": [msg]}
 
+    if action_type == "declare_attackers":
+        human = next((p for p in gs.players if p.is_human), None)
+        if not human:
+            raise HTTPException(status_code=400, detail="No human player found")
+        if gs.active_player.id != human.id:
+            raise HTTPException(status_code=400, detail="Not your turn to attack")
+        if gs.combat_awaiting_human_action != "declare_attackers":
+            raise HTTPException(status_code=400, detail="Not in declare attackers step")
+
+        raw_attackers: dict[str, str] = action.get("attackers", {})
+        log_before = len(gs.game_log)
+
+        if raw_attackers:
+            opponents = {p.id for p in gs.get_opponents(human.id)}
+            validated: dict[str, str] = {}
+            for card_id, target_id in raw_attackers.items():
+                card = human.battlefield.get(card_id)
+                if not card or not card.is_creature or card.tapped:
+                    continue
+                if card.has_summoning_sickness(gs.turn):
+                    continue
+                if target_id not in opponents:
+                    continue
+                validated[card_id] = target_id
+            if validated:
+                gs._process_attacker_declarations(validated, human)
+            else:
+                gs.log(f"{human.name} chooses not to attack")
+        else:
+            gs.log(f"{human.name} chooses not to attack")
+
+        gs.complete_combat_after_attackers()
+        gs.check_state_based_actions()
+        return {"status": "ok", "log": gs.game_log[log_before:]}
+
+    if action_type == "declare_blockers":
+        human = next((p for p in gs.players if p.is_human), None)
+        if not human:
+            raise HTTPException(status_code=400, detail="No human player found")
+        if gs.combat_awaiting_human_action != "declare_blockers":
+            raise HTTPException(status_code=400, detail="Not in declare blockers step")
+
+        raw_blocks: dict[str, str] = action.get("blocks", {})
+        log_before = len(gs.game_log)
+
+        for blocker_id, attacker_id in raw_blocks.items():
+            blocker = human.battlefield.get(blocker_id)
+            if not blocker or not blocker.is_creature or blocker.tapped:
+                continue
+            if attacker_id not in gs.combat_attackers:
+                continue
+            blocker.is_blocking = True
+            blocker.blocking = attacker_id
+            gs.combat_blockers.setdefault(attacker_id, []).append(blocker_id)
+            atk_name = gs._card_name(attacker_id)
+            gs.log(f"{human.name}: {blocker.name} blocks {atk_name}")
+
+        if not raw_blocks:
+            gs.log(f"{human.name} takes all damage unblocked")
+
+        gs.complete_combat_after_blockers()
+        gs.check_state_based_actions()
+        return {"status": "ok", "log": gs.game_log[log_before:]}
+
     if action_type == "untap_land":
         card_id = action.get("card_id")
         human = next((p for p in gs.players if p.is_human), None)
@@ -658,5 +736,6 @@ async def ai_step(game_id: str):
         gs.active_player.id == human.id
         or not gs.stack.is_empty
         or gs.winner is not None
+        or bool(gs.combat_awaiting_human_action)
     )
     return {"status": "ok", "log": new_log, "is_human_turn": is_human_turn}

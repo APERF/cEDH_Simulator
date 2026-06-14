@@ -2753,3 +2753,183 @@
   opacity: 0.65;
   font-family: var(--mono);
 }
+
+/* ── Combat ──────────────────────────────────────────────────────────────── */
+
+.combat-action-bar {
+  position: sticky;
+  top: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: rgba(20, 10, 5, 0.96);
+  border-bottom: 1px solid rgba(220, 100, 30, 0.5);
+  backdrop-filter: blur(6px);
+}
+
+.combat-label {
+  flex: 1;
+  font-size: 12px;
+  color: var(--gold-border);
+  font-weight: 600;
+}
+
+.combat-confirm-btn {
+  font-size: 12px;
+  padding: 5px 12px;
+  background: rgba(180, 60, 20, 0.85);
+  border-color: rgba(220, 100, 40, 0.7);
+}
+
+.combat-skip-btn {
+  font-size: 12px;
+  padding: 5px 10px;
+  background: rgba(40, 40, 40, 0.8);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.combat-skip-btn:hover {
+  background: rgba(60, 60, 60, 0.9);
+  color: var(--text);
+}
+
+/* Action error toast (Board.tsx) */
+.action-error-toast {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  background: rgba(180, 30, 30, 0.95);
+  color: #fff;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+}
+
+/* Attack-target button shown on AI player panels when a creature is pending */
+.attack-target-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+  background: rgba(180, 60, 20, 0.9);
+  border: 1px solid rgba(220, 100, 40, 0.8);
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  animation: pulse-attack 1s ease-in-out infinite;
+}
+
+.attack-target-btn:hover {
+  background: rgba(220, 80, 30, 1);
+  border-color: rgba(255, 140, 60, 1);
+}
+
+@keyframes pulse-attack {
+  0%, 100% { box-shadow: 0 0 4px rgba(220, 100, 40, 0.4); }
+  50%       { box-shadow: 0 0 10px rgba(255, 140, 60, 0.9); }
+}
+
+/* Creature combat state overlays */
+.bf-land-card.attackable img {
+  outline: 2px solid rgba(255, 160, 30, 0.8);
+  border-radius: 3px;
+}
+
+.bf-land-card.attackable:hover img {
+  outline: 2px solid rgba(255, 200, 50, 1);
+  filter: brightness(1.15);
+}
+
+.bf-land-card.selected-attacker img {
+  outline: 3px solid rgba(255, 80, 30, 1);
+  border-radius: 3px;
+  filter: brightness(1.1);
+}
+
+.bf-land-card.blockable img {
+  outline: 2px solid rgba(60, 160, 255, 0.8);
+  border-radius: 3px;
+}
+
+.bf-land-card.blockable:hover img {
+  outline: 2px solid rgba(80, 200, 255, 1);
+  filter: brightness(1.12);
+}
+
+.bf-land-card.pending-blocker img {
+  outline: 3px solid rgba(60, 220, 255, 1);
+  border-radius: 3px;
+  filter: brightness(1.1);
+}
+
+.bf-land-card.assigned-blocker img {
+  outline: 2px solid rgba(60, 255, 130, 0.9);
+  border-radius: 3px;
+}
+
+.bf-land-card.attack-target img {
+  outline: 2px solid rgba(255, 60, 60, 0.85);
+  border-radius: 3px;
+  filter: brightness(1.08);
+}
+
+.bf-land-card.attack-target:hover img {
+  outline: 3px solid rgba(255, 80, 80, 1);
+  filter: brightness(1.15);
+  cursor: crosshair;
+}
+
+.bf-land-card.attacking img {
+  outline: 2px solid rgba(255, 100, 30, 0.7);
+  border-radius: 3px;
+}
+
+.bf-land-card.blocking img {
+  outline: 2px solid rgba(60, 200, 255, 0.7);
+  border-radius: 3px;
+}
+
+/* Power/toughness badge */
+.bf-land-card {
+  position: relative;
+}
+
+.creature-pt {
+  position: absolute;
+  bottom: 2px;
+  right: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.72);
+  border-radius: 3px;
+  padding: 1px 3px;
+  line-height: 1.2;
+  pointer-events: none;
+  letter-spacing: 0.5px;
+}
+
+/* Combat icon badges */
+.combat-badge {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 10px;
+  line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.9));
+}
+
+.attack-badge  { color: #ff8030; }
+.block-badge   { color: #40c8ff; }
+.attacking-badge { color: #ff6020; top: 2px; left: 2px; }
+.blocking-badge  { color: #40d0ff; top: 2px; left: 2px; }

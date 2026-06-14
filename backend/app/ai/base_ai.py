@@ -8,6 +8,7 @@ from app.engine.stack import StackObject
 from app.models.schemas import Zone
 
 if TYPE_CHECKING:
+    from app.engine.card import Card
     from app.engine.game_state import GameState
     from app.engine.player import Player
 
@@ -40,6 +41,7 @@ class BaseAI(ABC):
             if playable:
                 player.hand.remove(playable.id)
                 playable.zone = Zone.BATTLEFIELD
+                playable.entered_turn = game_state.turn
                 if playable.mana_ability and playable.mana_ability.etbt:
                     playable.tapped = True
                 player.battlefield.add(playable)
@@ -72,6 +74,7 @@ class BaseAI(ABC):
                     def resolve_fn(gs):
                         c.zone = Zone.BATTLEFIELD
                         c.tapped = False
+                        c.entered_turn = gs.turn
                         p.battlefield.add(c)
                     return resolve_fn
 
@@ -114,6 +117,7 @@ class BaseAI(ABC):
                 if permanent:
                     c.zone = Zone.BATTLEFIELD
                     c.tapped = False
+                    c.entered_turn = gs.turn
                     p.battlefield.add(c)
                 else:
                     c.zone = Zone.GRAVEYARD
@@ -129,6 +133,79 @@ class BaseAI(ABC):
         ))
         game_state.log(f"{player.name} casts {card.name}")
         self._log_decision(game_state, "cast_spell", card=card.name, card_cost=card.mana_cost)
+
+    def declare_attackers(self, game_state: GameState) -> dict[str, str]:
+        """Return {card_id: defending_player_id} for creatures to send into combat."""
+        player = self.player
+        opponents = game_state.get_opponents(player.id)
+        if not opponents:
+            return {}
+
+        # Prefer the opponent with the lowest life total as the primary target
+        target = min(opponents, key=lambda p: p.life_total)
+        attackers: dict[str, str] = {}
+
+        for card in player.battlefield.permanents:
+            if not card.is_creature:
+                continue
+            if card.tapped:
+                continue
+            if card.has_summoning_sickness(game_state.turn):
+                continue
+            if card.is_commander:
+                # Commanders are too valuable to risk in combat
+                continue
+            if card.parsed_power() == 0:
+                continue
+            attackers[card.id] = target.id
+
+        if attackers:
+            self._log_decision(game_state, "declare_attackers",
+                               count=len(attackers), target=target.name)
+        else:
+            self._log_decision(game_state, "pass_combat", reason="no valid attackers")
+        return attackers
+
+    def declare_blockers(self, attacking_cards: list[Card], game_state: GameState) -> dict[str, str]:
+        """Return {blocker_card_id: attacker_card_id} for favorable or life-saving blocks."""
+        player = self.player
+        available = [
+            c for c in player.battlefield.permanents
+            if c.is_creature and not c.tapped and not c.is_commander
+        ]
+        blocks: dict[str, str] = {}
+
+        for attacker in attacking_cards:
+            if not available:
+                break
+            ap = attacker.parsed_power()
+            at = attacker.parsed_toughness()
+            best: Card | None = None
+
+            for blocker in available:
+                bp = blocker.parsed_power()
+                bt = blocker.parsed_toughness()
+                attacker_dies = bp >= at
+                blocker_dies = ap >= bt
+                # Prefer trades where we kill the attacker
+                if attacker_dies and not blocker_dies:
+                    best = blocker
+                    break
+                if attacker_dies and best is None:
+                    best = blocker  # even trade — keep looking for a better option
+
+            # Block big threats even at a loss
+            if best is None and ap >= 4:
+                for blocker in available:
+                    if blocker.parsed_power() >= at:
+                        best = blocker
+                        break
+
+            if best:
+                blocks[best.id] = attacker.id
+                available.remove(best)
+
+        return blocks
 
     def should_counter(self, game_state: GameState, spell_name: str, caster_id: str) -> bool:
         return False

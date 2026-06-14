@@ -164,7 +164,7 @@ function FlyingCardEl({ imageUri, fromRect, toRect, onDone }: {
 
 export function Game() {
   const { gameId } = useParams<{ gameId: string }>();
-  const { gameState, actionLog, appendLog, setGameState, setLoading, isLoading } = useGameStore();
+  const { gameState, actionLog, appendLog, setGameState, setGameId, setLoading, isLoading } = useGameStore();
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [holdingPriority, setHoldingPriority] = useState(false);
@@ -235,6 +235,7 @@ export function Game() {
   useEffect(() => {
     if (!gameId) return;
     setFetchError(null);
+    setGameId(gameId);
     getGameState(gameId)
       .then(state => { prevStateRef.current = state; setGameState(state); })
       .catch((e) => setFetchError(e?.response?.data?.detail ?? e?.message ?? "Failed to load game"));
@@ -296,7 +297,7 @@ export function Game() {
     )?.name ?? "AI";
 
     runAiStepLoop(gameId, aiName);
-  }, [gameState?.active_player_id, gameState?.mulligan_phase, gameState?.stack_size]);
+  }, [gameState?.active_player_id, gameState?.mulligan_phase, gameState?.stack_size, gameState?.combat_awaiting_human_action]);
 
   async function runAiStepLoop(id: string, aiName: string) {
     aiLoopActiveRef.current = true;
@@ -327,7 +328,8 @@ export function Game() {
           !!human &&
           newState.active_player_id !== human.id &&
           (newState.stack ?? []).length === 0 &&
-          !newState.winner;
+          !newState.winner &&
+          !newState.combat_awaiting_human_action;
 
         if (!continueLoop) break;
       }

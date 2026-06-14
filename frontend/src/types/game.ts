@@ -94,6 +94,12 @@ export interface BattlefieldCard {
   image_uri: string | null;
   tapped: boolean;
   type_line: string;
+  power: string | null;
+  toughness: string | null;
+  is_attacking: boolean;
+  attacking_target: string | null;
+  is_blocking: boolean;
+  entered_turn: number;
 }
 
 export interface GraveyardCard {
@@ -160,6 +166,9 @@ export interface GameState {
   stack_size: number;
   stack: StackItem[];
   winner: string | null;
+  combat_awaiting_human_action: "declare_attackers" | "declare_blockers" | null;
+  combat_attackers: Record<string, string>;   // card_id → defending_player_id
+  combat_blockers: Record<string, string[]>;  // attacker_id → [blocker_ids]
 }
 
 export interface AIDecisionHandCard {
@@ -199,7 +208,8 @@ export type ActionType =
   | "cast_spell"
   | "activate_ability"
   | "pass_priority"
-  | "declare_attacker"
+  | "declare_attackers"
+  | "declare_blockers"
   | "play_land"
   | "cast_commander"
   | "tap_land"
@@ -212,4 +222,6 @@ export interface GameAction {
   targets?: string[];
   color?: string;
   pay_life?: boolean;
+  attackers?: Record<string, string>;
+  blocks?: Record<string, string>;
 }

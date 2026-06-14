@@ -16,10 +16,11 @@ cEDH Simulator — Dev TODO
 [x] implement dev tools for bug troubleshooting
 [x] Display battlefield cards graphically (tapped/untapped state)
 [x] Draw a card at the start of each turn
-[ ] Implement combat (declare attackers/blockers, damage assignment)
+[x] Implement combat (declare attackers/blockers, damage assignment)
 [ ] Game log improvements (show card names, phases, player actions)
 [ ] implement logic that follows and executes each card's specific rules
 [ ] Win condition detection (life total, commander damage, poison)
+[ ] fix lands being able to be untapped after mana has been used
 [ ] disable auto-discard
 [ ] Graveyard / exile zone display
 [x] implement player-field zoom-in

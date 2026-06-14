@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import type { Player, HandCard, CommanderCard, LandCard, BattlefieldCard, GraveyardCard, ExileCard, ManaPool, Step } from "../../types/game";
+import type { Player, HandCard, CommanderCard, LandCard, BattlefieldCard, GraveyardCard, ManaPool, Step } from "../../types/game";
 import { canAfford } from "../../utils/mana";
 
 interface Props {
@@ -8,10 +8,24 @@ interface Props {
   isActive: boolean;
   isHumanTurn: boolean;
   currentStep: Step;
+  currentTurn: number;
   onCastCommander: (cardId: string) => void;
   onPlayCard: (cardId: string, actionType: "play_land" | "cast_spell", opts?: { payLife?: boolean }) => void;
   onTapLand: (cardId: string, color?: string, untap?: boolean) => void;
   aiHandCards?: HandCard[];
+  allPlayers?: Player[];   // for name lookup in combat badges
+  // combat
+  combatMode?: "select_attackers" | "select_blockers" | null;
+  selectedAttackers?: Map<string, string>;  // card_id → target_player_id
+  pendingAttacker?: string | null;          // creature selected, awaiting target click
+  pendingBlocks?: Record<string, string>;
+  pendingBlocker?: string | null;
+  humanPlayerId?: string;
+  onToggleAttacker?: (cardId: string) => void;
+  onSelectAttackTarget?: (playerId: string) => void;
+  onToggleBlocker?: (cardId: string) => void;
+  onAssignBlockTarget?: (attackerId: string) => void;
+  onUnassignBlock?: (blockerId: string) => void;
 }
 
 const MANA_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
@@ -168,7 +182,12 @@ function GraveyardModal({ cards, playerName, zoneName = "Graveyard", onClose }: 
   );
 }
 
-export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCastCommander, onPlayCard, onTapLand, aiHandCards }: Props) {
+export function PlayerPanel({
+  player, isActive, isHumanTurn, currentStep, currentTurn,
+  onCastCommander, onPlayCard, onTapLand, aiHandCards,
+  combatMode, selectedAttackers, pendingAttacker, pendingBlocks, pendingBlocker,
+  humanPlayerId, allPlayers, onToggleAttacker, onSelectAttackTarget, onToggleBlocker, onAssignBlockTarget, onUnassignBlock,
+}: Props) {
   const [hovered, setHovered] = useState<{ card: HandCard | CommanderCard | LandCard | BattlefieldCard; rect: DOMRect } | null>(null);
   const [colorPicker, setColorPicker] = useState<{ landId: string; produces: string[]; anchor: DOMRect } | null>(null);
   const [shockPrompt, setShockPrompt] = useState<{ cardId: string; name: string } | null>(null);
@@ -202,6 +221,15 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
           <span className="pp-tag">{player.is_human ? "You" : "AI"}</span>
         </div>
         <div className="pp-header-right">
+          {combatMode === "select_attackers" && !player.is_human && pendingAttacker && (
+            <button
+              className="attack-target-btn"
+              onClick={() => onSelectAttackTarget?.(player.id)}
+              title={`Attack ${player.name} with selected creature`}
+            >
+              ⚔ Attack {player.name}
+            </button>
+          )}
           <span className="pp-life">{player.life_total}</span>
           {(player.poison_counters ?? 0) > 0 && (
             <span className="pp-poison">☠{player.poison_counters}</span>
@@ -271,27 +299,91 @@ export function PlayerPanel({ player, isActive, isHumanTurn, currentStep, onCast
             <div className="bf-area">
               {(player.permanents ?? []).filter(c => !c.type_line?.toLowerCase().includes("artifact")).length > 0 ? (
                 <div className="bf-lands-cards">
-                  {(player.permanents ?? []).filter(c => !c.type_line?.toLowerCase().includes("artifact")).map((card: BattlefieldCard) => (
-                    <div
-                      key={card.id}
-                      data-bf-card={card.id}
-                      className={`bf-land-card${card.tapped ? " tapped" : ""}`}
-                    >
-                      {card.image_uri ? (
-                        <img
-                          src={card.image_uri}
-                          alt={card.name}
-                          title={card.name}
-                          onMouseEnter={(e) =>
-                            setHovered({ card, rect: e.currentTarget.getBoundingClientRect() })
+                  {(player.permanents ?? []).filter(c => !c.type_line?.toLowerCase().includes("artifact")).map((card: BattlefieldCard) => {
+                    const isCreature = card.type_line?.toLowerCase().includes("creature");
+                    const isHuman = player.id === humanPlayerId;
+
+                    // Attacker selection mode (human's own creatures)
+                    const hasSummoningSickness = isCreature && card.entered_turn === currentTurn;
+                    const isValidAttacker = isCreature && !card.tapped && !hasSummoningSickness && combatMode === "select_attackers" && isHuman;
+                    const isSelectedAttacker = selectedAttackers?.has(card.id) ?? false;
+
+                    // Blocker selection mode
+                    const isValidBlocker = isCreature && !card.tapped && combatMode === "select_blockers" && isHuman;
+                    const isThisPendingBlocker = pendingBlocker === card.id;
+                    const assignedAttackerId = pendingBlocks?.[card.id];
+                    const isAssignedBlocker = !!assignedAttackerId;
+
+                    // AI attacker display (card is attacking the human)
+                    const isAttackingMe = card.is_attacking && !isHuman && combatMode === "select_blockers";
+                    const isClickableAttackTarget = isAttackingMe && !!pendingBlocker;
+
+                    let combatClass = "";
+                    if (card.is_attacking) combatClass += " attacking";
+                    if (card.is_blocking) combatClass += " blocking";
+                    if (isSelectedAttacker) combatClass += " selected-attacker";
+                    if (isValidAttacker && !isSelectedAttacker) combatClass += " attackable";
+                    if (isThisPendingBlocker) combatClass += " pending-blocker";
+                    if (isAssignedBlocker) combatClass += " assigned-blocker";
+                    if (isValidBlocker && !isThisPendingBlocker && !isAssignedBlocker) combatClass += " blockable";
+                    if (isClickableAttackTarget) combatClass += " attack-target";
+
+                    function handleCreatureClick() {
+                      if (combatMode === "select_attackers" && isValidAttacker) {
+                        onToggleAttacker?.(card.id);
+                      } else if (combatMode === "select_blockers") {
+                        if (isHuman && isValidBlocker) {
+                          if (isAssignedBlocker) {
+                            onUnassignBlock?.(card.id);
+                          } else {
+                            onToggleBlocker?.(card.id);
                           }
-                          onMouseLeave={() => setHovered(null)}
-                        />
-                      ) : (
-                        <div className="bf-land-card-fallback">{card.name}</div>
-                      )}
-                    </div>
-                  ))}
+                        } else if (isClickableAttackTarget) {
+                          onAssignBlockTarget?.(card.id);
+                        }
+                      }
+                    }
+
+                    return (
+                      <div
+                        key={card.id}
+                        data-bf-card={card.id}
+                        className={`bf-land-card${card.tapped ? " tapped" : ""}${combatClass}`}
+                        onClick={handleCreatureClick}
+                        style={{ cursor: (isValidAttacker || isValidBlocker || isClickableAttackTarget) ? "pointer" : undefined }}
+                      >
+                        {card.image_uri ? (
+                          <img
+                            src={card.image_uri}
+                            alt={card.name}
+                            title={card.name}
+                            onMouseEnter={(e) =>
+                              setHovered({ card, rect: e.currentTarget.getBoundingClientRect() })
+                            }
+                            onMouseLeave={() => setHovered(null)}
+                          />
+                        ) : (
+                          <div className="bf-land-card-fallback">{card.name}</div>
+                        )}
+                        {isCreature && card.power != null && card.toughness != null && (
+                          <div className="creature-pt">{card.power}/{card.toughness}</div>
+                        )}
+                        {isSelectedAttacker && (
+                          <div className="combat-badge attack-badge">
+                            ⚔ {(() => {
+                              const tid = selectedAttackers?.get(card.id);
+                              const tname = allPlayers?.find(p => p.id === tid)?.name;
+                              return tname ? `→${tname.split(" ")[0]}` : "";
+                            })()}
+                          </div>
+                        )}
+                        {isThisPendingBlocker && <div className="combat-badge block-badge">🛡</div>}
+                        {isAssignedBlocker && <div className="combat-badge block-badge">🛡</div>}
+                        {card.is_attacking && <div className="combat-badge attacking-badge">⚔</div>}
+                        {card.is_blocking && <div className="combat-badge blocking-badge">🛡</div>}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="bf-empty">Empty</div>
