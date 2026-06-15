@@ -17,9 +17,10 @@ cEDH Simulator — Dev TODO
 [x] Display battlefield cards graphically (tapped/untapped state)
 [x] Draw a card at the start of each turn
 [x] Implement combat (declare attackers/blockers, damage assignment)
-[ ] make a dev tool that allows you to select opening hand
+[x] make a dev tool that allows you to select opening hand
+[ ] fix UI Mulligan bug
 [ ] Game log improvements (show card names, phases, player actions)
-[x] implement logic that follows and executes each card's specific rules
+[ ] implement logic that follows and executes each card's specific rules
 [ ] Win condition detection (life total, commander damage, poison)
 [ ] fix lands being able to be untapped after mana has been used
 [ ] disable auto-discard

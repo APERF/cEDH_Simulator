@@ -3,6 +3,7 @@ import json
 import os
 import re
 import random
+from collections import deque
 from fastapi import APIRouter, HTTPException
 from app.models.schemas import NewGameRequest, Zone, Step
 from app.engine.card import Card
@@ -422,6 +423,68 @@ async def mulligan_ai_turn(game_id: str):
         gs.mulligan_do_mulligan(player)
         gs.log(f"{player.name} mulligans ({gs.mulligan_counts[current_id]})")
 
+    return gs.to_dict()
+
+
+@router.get("/{game_id}/dev/library", response_model=dict)
+async def dev_get_library(game_id: str):
+    """Dev tool: returns every card in the human player's hand + library for hand selection."""
+    if game_id not in _sessions:
+        raise HTTPException(status_code=404, detail="Game not found")
+    gs = _sessions[game_id]
+    if gs.mulligan_phase not in ("mulliganing", "selecting_bottom"):
+        raise HTTPException(status_code=400, detail="Only available during mulligan phase")
+    human = next(p for p in gs.players if p.is_human)
+    all_cards = list(human.hand.cards) + list(human.library._cards)
+    return {
+        "cards": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "type_line": c.type_line or "",
+                "mana_cost": c.mana_cost,
+                "image_uri": c.image_uri,
+            }
+            for c in all_cards
+        ]
+    }
+
+
+@router.post("/{game_id}/dev/set_hand", response_model=dict)
+async def dev_set_hand(game_id: str, body: dict):
+    """Dev tool: set the human player's opening hand to exactly 7 chosen cards."""
+    if game_id not in _sessions:
+        raise HTTPException(status_code=404, detail="Game not found")
+    gs = _sessions[game_id]
+    if gs.mulligan_phase not in ("mulliganing", "selecting_bottom"):
+        raise HTTPException(status_code=400, detail="Only available during mulligan phase")
+    human = next(p for p in gs.players if p.is_human)
+    card_ids: list[str] = body.get("card_ids", [])
+    if len(card_ids) != 7:
+        raise HTTPException(status_code=400, detail="Must select exactly 7 cards")
+
+    pool = {c.id: c for c in list(human.hand.cards) + list(human.library._cards)}
+    for cid in card_ids:
+        if cid not in pool:
+            raise HTTPException(status_code=400, detail=f"Card {cid} not found in pool")
+
+    selected = [pool[cid] for cid in card_ids]
+    rest = [c for cid, c in pool.items() if cid not in set(card_ids)]
+
+    human.hand._cards.clear()
+    for card in selected:
+        card.zone = "hand"
+        human.hand._cards.append(card)
+
+    random.shuffle(rest)
+    human.library._cards = deque()
+    for card in rest:
+        card.zone = "library"
+        human.library._cards.append(card)
+
+    gs.mulligan_phase = "mulliganing"  # reset from selecting_bottom if needed
+    gs.mulligan_do_keep(human.id)
+    gs.log("Dev: opening hand set manually")
     return gs.to_dict()
 
 

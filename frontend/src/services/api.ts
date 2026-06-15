@@ -93,6 +93,18 @@ export async function fetchEdhtop16Deck(
   return data;
 }
 
+export async function devGetLibrary(
+  gameId: string
+): Promise<{ id: string; name: string; type_line: string; mana_cost: string | null; image_uri: string | null }[]> {
+  const { data } = await api.get(`/game/${gameId}/dev/library`);
+  return data.cards;
+}
+
+export async function devSetHand(gameId: string, cardIds: string[]): Promise<GameState> {
+  const { data } = await api.post(`/game/${gameId}/dev/set_hand`, { card_ids: cardIds });
+  return data;
+}
+
 export async function searchCard(name: string) {
   const { data } = await api.get("/cards/search", { params: { name } });
   return data;

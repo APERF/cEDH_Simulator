@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { GameState } from "../../types/game";
 import { mulliganAction, mulliganAiTurn } from "../../services/api";
+import { DevHandPicker } from "./DevHandPicker";
 
 interface Props {
   gameState: GameState;
@@ -11,6 +12,8 @@ export function MulliganPhase({ gameState, onStateChange }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDevPicker, setShowDevPicker] = useState(false);
+  const isDevUser = localStorage.getItem("role") === "dev";
 
   const human = gameState.players.find((p) => p.is_human)!;
   const currentPlayerId = gameState.mulligan_current_player_id;
@@ -214,6 +217,14 @@ export function MulliganPhase({ gameState, onStateChange }: Props) {
 
   // ── Human is deciding ────────────────────────────────────────────────────
   return (
+    <>
+    {showDevPicker && (
+      <DevHandPicker
+        gameId={gameState.game_id}
+        onConfirm={(newState) => { setShowDevPicker(false); onStateChange(newState); }}
+        onCancel={() => setShowDevPicker(false)}
+      />
+    )}
     <div className="mulligan-overlay">
       <div className="mulligan-panel">
         <div className="mulligan-header">
@@ -263,6 +274,11 @@ export function MulliganPhase({ gameState, onStateChange }: Props) {
               <button onClick={() => act("mulligan")} disabled={busy}>
                 {busy ? "Drawing..." : `Mulligan${mulliganCount === 0 ? " (Free)" : ""}`}
               </button>
+              {isDevUser && (
+                <button className="dev-pick-hand-btn" onClick={() => setShowDevPicker(true)} disabled={busy}>
+                  Select Opening Hand
+                </button>
+              )}
             </>
           )}
           {isSelectingBottom && (
@@ -294,5 +310,6 @@ export function MulliganPhase({ gameState, onStateChange }: Props) {
         {opponentsSection}
       </div>
     </div>
+    </>
   );
 }
