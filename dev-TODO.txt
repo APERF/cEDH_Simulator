@@ -31,3 +31,4 @@ cEDH Simulator — Dev TODO
 [ ] fix UI hover sticking on Stack UI
 [ ] add AI Mana Pools and reimagine Mana Pool UI
 [ ] turn UI to be fully Reactive
+[x] transfer db to postgres
