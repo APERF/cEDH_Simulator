@@ -15,9 +15,30 @@ _BASIC_TYPE_TO_COLOR: dict[str, str] = {
 }
 
 _ADD_MANA_RE = re.compile(r"\{T\}\s*:\s*Add\s+([^.]+)", re.IGNORECASE)
+_ARTIFACT_MANA_RE = re.compile(r"\{T\}[^:]*:\s*Add\s+([^.]+)", re.IGNORECASE)
 _COLOR_SYMBOL_RE = re.compile(r"\{([WUBRG])\}")
 _COLORLESS_SYMBOL_RE = re.compile(r"\{C\}")
 _ANY_COLOR_RE = re.compile(r"one mana of any color", re.IGNORECASE)
+
+# ── Patterns that mean the {T}: Add belongs to ANOTHER permanent ──────────────
+# Equipment/aura grant patterns — the mana ability is on the equipped creature
+_GRANT_RE = re.compile(
+    r"(equipped creature|enchanted creature|enchanted permanent|"
+    r"creatures you control|target creature|each creature) has",
+    re.IGNORECASE,
+)
+# Equipment keyword — Equip {cost} in oracle text
+_EQUIP_RE = re.compile(r"\bEquip\b", re.IGNORECASE)
+# Keyword-gated abilities (Metalcraft, Threshold, etc.) — registry handles these
+_KEYWORD_GATE_RE = re.compile(
+    r"(metalcraft|threshold|delirium|morbid|formidable|grandeur|chroma|devotion)\s*[—\-]",
+    re.IGNORECASE,
+)
+# Abilities whose mana production depends on an exiled/imprinted card
+_EXILED_CARD_MANA_RE = re.compile(
+    r"(color identity contains|that (exiled|imprinted) card)",
+    re.IGNORECASE,
+)
 _FETCH_RE = re.compile(r"search your library for a.*?land card", re.IGNORECASE | re.DOTALL)
 _ETBT_RE = re.compile(r"enters the battlefield tapped", re.IGNORECASE)
 _SHOCK_RE = re.compile(r"you may pay 2 life", re.IGNORECASE)
@@ -26,9 +47,10 @@ _CONDITIONAL_ETBT_RE = re.compile(r"enters the battlefield tapped unless", re.IG
 
 @dataclass
 class ManaAbility:
-    """Describes what mana a land produces and any special entry conditions."""
+    """Describes what mana a permanent produces from its tap ability."""
     type: str  # "basic" | "dual" | "tri" | "any_color" | "colorless" | "fetch" | "utility"
     produces: list[str] = field(default_factory=list)  # subset of W U B R G C
+    count: int = 1            # mana added per activation (e.g. 2 for Sol Ring, 3 for Grim Monolith)
     etbt: bool = False        # always enters tapped (no player choice bypasses it)
     condition: Optional[str] = None  # "pay_life:2" (shock) | "check" (conditional etbt) | None
 
@@ -93,6 +115,50 @@ def classify_land(type_line: str, oracle_text: str) -> ManaAbility:
         mtype = "tri"
 
     return ManaAbility(type=mtype, produces=produces, etbt=etbt, condition=condition)
+
+
+def classify_artifact_mana(oracle_text: str) -> "ManaAbility | None":
+    """Return ManaAbility for an artifact's tap mana ability, or None if it has none."""
+    oracle = oracle_text or ""
+    add_match = _ARTIFACT_MANA_RE.search(oracle)
+    if not add_match:
+        return None
+    add_text = add_match.group(1)
+
+    if _ANY_COLOR_RE.search(add_text):
+        return ManaAbility(type="any_color", produces=["W", "U", "B", "R", "G"], count=1)
+
+    colors = list(dict.fromkeys(_COLOR_SYMBOL_RE.findall(add_text)))
+    if colors:
+        mtype = "basic" if len(colors) == 1 else ("dual" if len(colors) == 2 else "tri")
+        return ManaAbility(type=mtype, produces=colors, count=1)
+
+    colorless = _COLORLESS_SYMBOL_RE.findall(add_text)
+    if colorless:
+        return ManaAbility(type="colorless", produces=["C"], count=len(colorless))
+
+    return None
+
+
+def classify_nonland_mana(oracle_text: str) -> "ManaAbility | None":
+    """
+    Return ManaAbility for any non-land card's tap mana ability, or None.
+
+    Filters out false positives that classify_artifact_mana would emit:
+    - Equipment / auras that *grant* a tap ability to another permanent
+    - Keyword-gated abilities (Metalcraft, Threshold) handled by registry ETB
+    - Abilities that depend on an exiled / imprinted card's colors
+    """
+    oracle = oracle_text or ""
+    if _GRANT_RE.search(oracle):
+        return None
+    if _EQUIP_RE.search(oracle):
+        return None
+    if _KEYWORD_GATE_RE.search(oracle):
+        return None
+    if _EXILED_CARD_MANA_RE.search(oracle):
+        return None
+    return classify_artifact_mana(oracle)
 
 
 def parse_fetch_targets(oracle_text: str) -> list[str]:

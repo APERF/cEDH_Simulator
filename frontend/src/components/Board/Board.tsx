@@ -114,6 +114,42 @@ export function Board({ onStateChange, aiHandsMap }: Props) {
     }
   }
 
+  async function handleTapArtifact(cardId: string, color?: string, untap = false) {
+    if (!gameId) return;
+    setLoading(true);
+    try {
+      const result = await sendAction(gameId, {
+        type: untap ? "untap_artifact" : "tap_artifact",
+        card_id: cardId,
+        ...(color ? { color } : {}),
+      });
+      appendLog(result.log);
+      onStateChange(await getGameState(gameId));
+    } catch (e) {
+      showError(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleEquip(equipmentId: string, creatureId: string) {
+    if (!gameId) return;
+    setLoading(true);
+    try {
+      const result = await sendAction(gameId, {
+        type: "equip",
+        equipment_id: equipmentId,
+        creature_id: creatureId,
+      });
+      appendLog(result.log);
+      onStateChange(await getGameState(gameId));
+    } catch (e) {
+      showError(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   // ── Combat handlers ──────────────────────────────────────────────────────
 
   function handleToggleAttacker(cardId: string) {
@@ -300,6 +336,8 @@ export function Board({ onStateChange, aiHandsMap }: Props) {
               onCastCommander={handleCastCommander}
               onPlayCard={handlePlayCard}
               onTapLand={handleTapLand}
+              onTapArtifact={handleTapArtifact}
+              onEquip={handleEquip}
               aiHandCards={aiHandsMap?.[p.id]}
               allPlayers={gameState.players}
               // combat

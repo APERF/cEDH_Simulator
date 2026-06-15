@@ -58,6 +58,102 @@ _sessions: dict[str, GameState] = {}  # noqa
 _META_DIR = os.path.join(os.path.dirname(__file__), "../../decks/meta_decks")
 
 
+def _ai_resolve_etb_replacement(gs: GameState, ctrl, stack_obj, etb_rep: dict) -> None:
+    """Auto-resolve an ETB replacement for an AI controller."""
+    cost = etb_rep.get("cost", {})
+    paid = False
+    if cost.get("type") == "discard":
+        filt = cost.get("filter", "any")
+        count = cost.get("count", 1)
+        candidates = [
+            c for c in (ctrl.hand._cards if ctrl else [])
+            if filt == "any" or (filt == "land" and c.is_land)
+        ]
+        if len(candidates) >= count:
+            for c in candidates[:count]:
+                ctrl.hand._cards.remove(c)
+                c.zone = Zone.GRAVEYARD
+                ctrl.graveyard.add(c)
+                gs.log(f"{ctrl.name} discards {c.name} for {stack_obj.card.name}")
+            paid = True
+    elif cost.get("type") == "pay_life":
+        amount = cost.get("amount", 0)
+        if ctrl and ctrl.life_total > amount:
+            ctrl.life_total -= amount
+            gs.log(f"{ctrl.name} pays {amount} life for {stack_obj.card.name}")
+            paid = True
+
+    if not paid:
+        on_skip = etb_rep.get("on_skip", "graveyard")
+        if on_skip == "graveyard":
+            popped = gs.stack.pop()
+            if popped and ctrl:
+                popped.card.zone = Zone.GRAVEYARD
+                ctrl.graveyard.add(popped.card)
+                gs.log(f"{stack_obj.card.name} goes to graveyard (ETB cost not paid)")
+
+
+_EQUIP_COST_RE = re.compile(r"\bEquip\b\s*(\{[^}]+\}(?:\{[^}]+\})*)", re.IGNORECASE)
+
+
+def _parse_equip_cost(card: "Card") -> str | None:
+    """Return the equip mana cost string, e.g. '{2}' or '{0}', from oracle text or effects_json."""
+    spec = getattr(card, "effects_json", None) or {}
+    if spec.get("equip_cost"):
+        return spec["equip_cost"]
+    m = _EQUIP_COST_RE.search(card.oracle_text or "")
+    return m.group(1) if m else None
+
+
+def _grants_from_equipment(card: "Card") -> list[dict]:
+    """Return grants_to_equipped list from effects_json, or parse from oracle text."""
+    spec = getattr(card, "effects_json", None) or {}
+    grants = spec.get("grants_to_equipped")
+    if grants is not None:
+        return grants
+    # Fallback: parse "Equipped creature has '{T}: Add ...'" from oracle text
+    oracle = card.oracle_text or ""
+    inner = re.search(r"Equipped creature has '(.+?)'", oracle, re.IGNORECASE)
+    if inner:
+        from app.engine.mana_ability import classify_artifact_mana
+        ma = classify_artifact_mana(inner.group(1))
+        if ma:
+            grant: dict = {"type": "mana_ability", "count": ma.count}
+            if ma.type == "any_color":
+                grant["any_color"] = True
+            else:
+                grant["colors"] = ma.produces
+            return [grant]
+    return []
+
+
+def _apply_equipment_to_creature(equipment: "Card", creature: "Card") -> None:
+    """Grant equipment abilities to a creature, saving its natural mana ability first."""
+    from app.engine.mana_ability import ManaAbility
+    # Save creature's natural mana ability before overriding
+    if creature.natural_mana_ability is None:
+        creature.natural_mana_ability = creature.mana_ability
+    for grant in _grants_from_equipment(equipment):
+        if grant.get("type") == "mana_ability":
+            if grant.get("any_color"):
+                creature.mana_ability = ManaAbility(
+                    type="any_color",
+                    produces=["W", "U", "B", "R", "G"],
+                    count=grant.get("count", 1),
+                )
+            elif grant.get("colors"):
+                colors = grant["colors"]
+                mtype = "basic" if len(colors) == 1 else ("dual" if len(colors) == 2 else "tri")
+                creature.mana_ability = ManaAbility(type=mtype, produces=colors, count=grant.get("count", 1))
+
+
+def _remove_equipment_from_creature(equipment: "Card", creature: "Card") -> None:
+    """Restore creature's natural mana ability when equipment is detached."""
+    creature.mana_ability = creature.natural_mana_ability
+    creature.natural_mana_ability = None
+    equipment.equipped_to = None
+
+
 def _make_card(name: str, owner_id: str) -> Card:
     return Card(
         id=str(uuid_lib.uuid4()),
@@ -340,10 +436,34 @@ async def player_action(game_id: str, action: dict):
     if action_type == "pass_priority":
         log_before = len(gs.game_log)
         if not gs.stack.is_empty:
+            top_obj = gs.stack.objects[-1]
+            # Check ETB replacement registry first, then effects_json
+            from app.engine.effects.registry import ETB_REPLACEMENTS
+            etb_rep = ETB_REPLACEMENTS.get(top_obj.card.name)
+            if not etb_rep:
+                spec = getattr(top_obj.card, "effects_json", None)
+                etb_rep = (spec or {}).get("etb_replacement") if spec and not spec.get("skip") else None
+
+            if etb_rep:
+                ctrl = gs.get_player(top_obj.controller_id)
+                if ctrl and ctrl.is_human:
+                    # Pause and ask the human player to choose
+                    gs.pending_etb_replacement = {
+                        "stack_obj_id": top_obj.id,
+                        "card_id": top_obj.card.id,
+                        "card_name": top_obj.card.name,
+                        "etb_replacement": etb_rep,
+                    }
+                    return {"status": "ok", "log": gs.game_log[log_before:]}
+                else:
+                    # AI: auto-pay if able, else skip
+                    _ai_resolve_etb_replacement(gs, ctrl, top_obj, etb_rep)
+
             # Human always has priority to resolve the stack, regardless of whose turn it is
-            obj = gs.stack.resolve_top(gs)
-            if obj:
-                gs.log(f"{obj.card.name} resolves")
+            if gs.pending_etb_replacement is None:
+                obj = gs.stack.resolve_top(gs)
+                if obj:
+                    gs.log(f"{obj.card.name} resolves")
         elif gs.active_player.is_human:
             # Stack is empty — advance the phase (only valid on human's turn)
             gs.advance_step()
@@ -411,6 +531,16 @@ async def player_action(game_id: str, action: dict):
         tax_str = f" (+{tax} tax)" if tax > 0 else ""
         msg = f"{human.name} casts {commander.name}{tax_str}"
         gs.log(msg)
+
+        from app.engine.effects import GameEvent, EVENT_SPELL_CAST
+        gs.fire_event(GameEvent(
+            type=EVENT_SPELL_CAST,
+            source_card_id=commander.id,
+            source_name=commander.name,
+            controller_id=human.id,
+        ))
+        gs.flush_effect_queue()
+
         return {"status": "ok", "log": [msg]}
 
     if action_type == "play_land":
@@ -565,6 +695,17 @@ async def player_action(game_id: str, action: dict):
         gs.stack.push(stack_obj)
         msg = f"{human.name} casts {card.name}"
         gs.log(msg)
+
+        # Fire spell_cast event (triggers Rhystic Study, Mystic Remora, etc.)
+        from app.engine.effects import GameEvent, EVENT_SPELL_CAST
+        gs.fire_event(GameEvent(
+            type=EVENT_SPELL_CAST,
+            source_card_id=card.id,
+            source_name=card.name,
+            controller_id=human.id,
+        ))
+        gs.flush_effect_queue()
+
         return {"status": "ok", "log": [msg]}
 
     if action_type == "tap_land":
@@ -675,6 +816,41 @@ async def player_action(game_id: str, action: dict):
         gs.check_state_based_actions()
         return {"status": "ok", "log": gs.game_log[log_before:]}
 
+    if action_type == "resolve_effect":
+        # Human resolves an optional triggered ability (yes/no choice).
+        # body: { type: "resolve_effect", choice: true|false }
+        human = next((p for p in gs.players if p.is_human), None)
+        if not human:
+            raise HTTPException(status_code=400, detail="No human player found")
+        if not gs.pending_choices:
+            raise HTTPException(status_code=400, detail="No pending effect choices")
+
+        choice = action.get("choice", True)
+        pending = gs.pending_choices.pop(0)
+        log_before = len(gs.game_log)
+        if choice:
+            pending.execute(gs)
+        elif pending.effect.needs_choice:
+            # "No" on a mandatory-choice effect: sacrifice the source card
+            from app.engine.effects import _find_card
+            source = _find_card(gs, pending.source_card_id)
+            player = gs.get_player(pending.controller_id)
+            if source and player:
+                try:
+                    player.battlefield.remove(source.id)
+                    source.zone = Zone.GRAVEYARD
+                    player.graveyard.add(source)
+                    gs.log(f"{source.name} sacrificed (player declined)")
+                except Exception:
+                    gs.log(f"{pending.description} — declined")
+            else:
+                gs.log(f"{pending.description} — declined")
+        else:
+            gs.log(f"{pending.description} — skipped")
+        gs.flush_effect_queue()
+        gs.check_state_based_actions()
+        return {"status": "ok", "log": gs.game_log[log_before:]}
+
     if action_type == "untap_land":
         card_id = action.get("card_id")
         human = next((p for p in gs.players if p.is_human), None)
@@ -696,6 +872,206 @@ async def player_action(game_id: str, action: dict):
         else:
             msg = f"{human.name} untaps {land.name}"
         land.tapped_for = None
+
+        gs.log(msg)
+        return {"status": "ok", "log": [msg]}
+
+    if action_type == "etb_replacement_choice":
+        log_before = len(gs.game_log)
+        if not gs.pending_etb_replacement:
+            raise HTTPException(status_code=400, detail="No pending ETB replacement")
+        pending = gs.pending_etb_replacement
+        gs.pending_etb_replacement = None
+
+        choice = action.get("choice")  # "pay" | "skip"
+        land_id = action.get("land_id")
+
+        top_obj = next((o for o in gs.stack.objects if o.id == pending["stack_obj_id"]), None)
+        if not top_obj:
+            raise HTTPException(status_code=400, detail="Stack object no longer exists")
+
+        human = gs.get_player(top_obj.controller_id)
+        etb_rep = pending["etb_replacement"]
+        cost = etb_rep.get("cost", {})
+        actually_paid = False
+
+        if choice == "pay":
+            if cost.get("type") == "discard":
+                filt = cost.get("filter", "any")
+                # Find the specific land the player chose, or auto-pick first
+                if land_id:
+                    land = next((c for c in (human.hand._cards if human else []) if c.id == land_id), None)
+                else:
+                    land = next(
+                        (c for c in (human.hand._cards if human else [])
+                         if filt == "any" or (filt == "land" and c.is_land)),
+                        None
+                    )
+                if land and human:
+                    human.hand._cards.remove(land)
+                    land.zone = Zone.GRAVEYARD
+                    human.graveyard.add(land)
+                    gs.log(f"{human.name} discards {land.name} for {pending['card_name']}")
+                    actually_paid = True
+                else:
+                    gs.log(f"No valid card to discard — {pending['card_name']} goes to graveyard")
+            elif cost.get("type") == "pay_life":
+                amount = cost.get("amount", 0)
+                if human and human.life_total > amount:
+                    human.life_total -= amount
+                    gs.log(f"{human.name} pays {amount} life for {pending['card_name']}")
+                    actually_paid = True
+                else:
+                    gs.log(f"Not enough life — {pending['card_name']} goes to graveyard")
+
+        if actually_paid and choice == "pay":
+            on_pay = etb_rep.get("on_pay", "enter_battlefield")
+            if on_pay == "enter_battlefield":
+                obj = gs.stack.resolve_top(gs)
+                if obj:
+                    gs.log(f"{obj.card.name} enters the battlefield")
+        else:
+            # Skip or cost couldn't be paid
+            on_skip = etb_rep.get("on_skip", "graveyard")
+            popped = gs.stack.pop()
+            if popped and human:
+                popped.card.zone = Zone.GRAVEYARD
+                human.graveyard.add(popped.card)
+                gs.log(f"{pending['card_name']} goes to graveyard")
+
+        return {"status": "ok", "log": gs.game_log[log_before:]}
+
+    if action_type == "equip":
+        equipment_id = action.get("equipment_id")
+        creature_id = action.get("creature_id")
+        human = next((p for p in gs.players if p.is_human), None)
+        if not human:
+            raise HTTPException(status_code=400, detail="No human player")
+
+        equipment = next((c for c in human.battlefield.permanents if c.id == equipment_id), None)
+        if not equipment:
+            raise HTTPException(status_code=400, detail="Equipment not on battlefield")
+
+        is_equip = "Equip" in (equipment.oracle_text or "") or (
+            (getattr(equipment, "effects_json", None) or {}).get("is_equipment")
+        )
+        if not is_equip:
+            raise HTTPException(status_code=400, detail="Card is not an equipment")
+
+        creature = next((c for c in human.battlefield.permanents if c.id == creature_id), None)
+        if not creature:
+            raise HTTPException(status_code=400, detail="Creature not on battlefield")
+        if not creature.is_creature:
+            raise HTTPException(status_code=400, detail="Target is not a creature")
+
+        equip_cost_str = _parse_equip_cost(equipment)
+        if equip_cost_str and equip_cost_str not in ("{0}", ""):
+            equip_cost = parse_cost(equip_cost_str)
+            if not can_pay(human.mana_pool, equip_cost):
+                raise HTTPException(status_code=400, detail=f"Cannot pay equip cost {equip_cost_str}")
+            pay(human.mana_pool, equip_cost)
+
+        # Detach from previous creature if re-equipping
+        if equipment.equipped_to and equipment.equipped_to != creature_id:
+            prev_creature = next(
+                (c for c in human.battlefield.permanents if c.id == equipment.equipped_to), None
+            )
+            if prev_creature:
+                _remove_equipment_from_creature(equipment, prev_creature)
+
+        equipment.equipped_to = creature_id
+        _apply_equipment_to_creature(equipment, creature)
+        msg = f"{human.name} equips {equipment.name} to {creature.name}"
+        gs.log(msg)
+        return {"status": "ok", "log": [msg]}
+
+    if action_type == "tap_artifact":
+        card_id = action.get("card_id")
+        color = action.get("color")
+        human = next((p for p in gs.players if p.is_human), None)
+        if not human:
+            raise HTTPException(status_code=400, detail="No human player found")
+
+        artifact = next((c for c in human.battlefield.permanents if c.id == card_id), None)
+        if not artifact:
+            raise HTTPException(status_code=400, detail="Permanent not found")
+        if artifact.tapped:
+            raise HTTPException(status_code=400, detail="Already tapped")
+        if not artifact.mana_ability or not artifact.mana_ability.produces:
+            raise HTTPException(status_code=400, detail="No mana ability")
+
+        # LED: discard hand before receiving mana
+        if artifact.name == "Lion's Eye Diamond":
+            discarded = list(human.hand._cards)
+            for c in discarded:
+                human.hand._cards.remove(c)
+                c.zone = Zone.GRAVEYARD
+                human.graveyard.add(c)
+            gs.log(f"{human.name} discards {len(discarded)} card(s) for Lion's Eye Diamond")
+
+        artifact.tapped = True
+        artifact.tapped_for = None
+
+        ma = artifact.mana_ability
+        count = ma.count or 1
+
+        if ma.type == "any_color":
+            if not color or color not in ["W", "U", "B", "R", "G"]:
+                raise HTTPException(status_code=400, detail="Must specify a color (W/U/B/R/G)")
+            for _ in range(count):
+                human.mana_pool.add(color)
+            artifact.tapped_for = color
+            msg = f"{human.name} taps {artifact.name} for {count}x{{{color}}}"
+        elif len(ma.produces) == 1:
+            chosen = ma.produces[0]
+            for _ in range(count):
+                human.mana_pool.add(chosen)
+            artifact.tapped_for = chosen
+            msg = f"{human.name} taps {artifact.name} for {count}x{{{chosen}}}"
+        else:
+            if not color or color not in ma.produces:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Must specify color from {ma.produces}",
+                )
+            for _ in range(count):
+                human.mana_pool.add(color)
+            artifact.tapped_for = color
+            msg = f"{human.name} taps {artifact.name} for {count}x{{{color}}}"
+
+        # Sacrifice after tapping (LED and Jeweled Lotus are one-shot)
+        if artifact.name in ("Lion's Eye Diamond", "Jeweled Lotus"):
+            human.battlefield.remove(artifact.id)
+            artifact.zone = Zone.GRAVEYARD
+            human.graveyard.add(artifact)
+            msg += f" (sacrificed {artifact.name})"
+
+        gs.log(msg)
+        return {"status": "ok", "log": [msg]}
+
+    if action_type == "untap_artifact":
+        card_id = action.get("card_id")
+        human = next((p for p in gs.players if p.is_human), None)
+        if not human:
+            raise HTTPException(status_code=400, detail="No human player found")
+
+        artifact = next((c for c in human.battlefield.permanents if c.id == card_id), None)
+        if not artifact:
+            raise HTTPException(status_code=400, detail="Permanent not found")
+        if not artifact.tapped:
+            raise HTTPException(status_code=400, detail="Not tapped")
+
+        ma = artifact.mana_ability
+        count = (ma.count or 1) if ma else 1
+
+        artifact.tapped = False
+        if artifact.tapped_for:
+            for _ in range(count):
+                human.mana_pool.spend(artifact.tapped_for)
+            msg = f"{human.name} untaps {artifact.name}, removing mana from pool"
+        else:
+            msg = f"{human.name} untaps {artifact.name}"
+        artifact.tapped_for = None
 
         gs.log(msg)
         return {"status": "ok", "log": [msg]}

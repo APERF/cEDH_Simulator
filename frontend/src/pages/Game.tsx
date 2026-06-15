@@ -4,6 +4,7 @@ import { useParams, Link } from "react-router-dom";
 import { Board } from "../components/Board/Board";
 import { MulliganPhase } from "../components/MulliganPhase/MulliganPhase";
 import { StackOverlay } from "../components/StackOverlay/StackOverlay";
+import { EffectQueueOverlay } from "../components/EffectQueueOverlay/EffectQueueOverlay";
 import { DevTools } from "../components/DevTools/DevTools";
 import { useGameStore } from "../store/gameStore";
 import { getGameState, getDebugState, sendAction, advanceAiStep } from "../services/api";
@@ -47,6 +48,67 @@ function stepDelay(speedMode: boolean): number {
 
 function sleep(ms: number) {
   return new Promise<void>(resolve => setTimeout(resolve, ms));
+}
+
+// ── ETB Replacement — land discard picker ────────────────────────────────────
+
+function ETBLandPicker({ lands, cardName, gameId, onStateChange, onSkip }: {
+  lands: HandCard[];
+  cardName: string;
+  gameId: string;
+  onStateChange: (s: GameState) => void;
+  onSkip: () => void;
+}) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  return (
+    <div>
+      <div style={{ fontSize: 13, color: "#aaa", marginBottom: 10 }}>
+        Choose a land to discard:
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+        {lands.map(land => (
+          <button
+            key={land.id}
+            onClick={() => setSelectedId(land.id)}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: `2px solid ${selectedId === land.id ? "#f0c040" : "#444"}`,
+              background: selectedId === land.id ? "#3a3010" : "#222",
+              color: "#e8e8e8",
+              cursor: "pointer",
+              fontSize: 13,
+            }}
+          >
+            {land.name}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <button
+          disabled={!selectedId}
+          style={{
+            flex: 1, padding: "10px 0", background: selectedId ? "#2a5a2a" : "#333",
+            border: "none", borderRadius: 8, color: "#fff",
+            cursor: selectedId ? "pointer" : "not-allowed", fontSize: 14,
+          }}
+          onClick={async () => {
+            if (!selectedId) return;
+            const r = await sendAction(gameId, { type: "etb_replacement_choice", choice: "pay", land_id: selectedId });
+            onStateChange(await getGameState(gameId));
+          }}
+        >
+          Discard &amp; Enter Battlefield
+        </button>
+        <button
+          style={{ flex: 1, padding: "10px 0", background: "#3a1a1a", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 14 }}
+          onClick={onSkip}
+        >
+          Let {cardName} go to graveyard
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ── Flying card animation ────────────────────────────────────────────────────
@@ -487,6 +549,71 @@ export function Game() {
                   onHoldPriority={() => setHoldingPriority(true)}
                 />
               )}
+              {gameState && (gameState.pending_choices ?? []).length > 0 && (gameState.stack ?? []).length === 0 && (
+                <EffectQueueOverlay
+                  gameState={gameState}
+                  onStateChange={applyNewState}
+                />
+              )}
+              {gameState?.pending_etb_replacement && (() => {
+                const etbPending = gameState.pending_etb_replacement!;
+                const human = gameState.players.find(p => p.is_human);
+                const etbRep = etbPending.etb_replacement;
+                const needsLand = etbRep.cost?.type === "discard" && etbRep.cost?.filter === "land";
+                const landCards = needsLand
+                  ? (human?.hand ?? []).filter(c =>
+                      c.land_type !== null || c.type_line?.toLowerCase().includes("land")
+                    )
+                  : [];
+                return (
+                  <div style={{ position: "fixed", inset: 0, zIndex: 9990, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div style={{ background: "#1a1a2e", border: "1px solid #444", borderRadius: 12, padding: 28, maxWidth: 440, width: "90%", color: "#e8e8e8" }}>
+                      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: "#f0c040" }}>
+                        {etbPending.card_name}
+                      </div>
+                      <div style={{ fontSize: 14, marginBottom: 20, color: "#aaa" }}>
+                        {etbRep.prompt || "Choose an option:"}
+                      </div>
+                      {needsLand ? (
+                        <ETBLandPicker
+                          lands={landCards}
+                          cardName={etbPending.card_name}
+                          gameId={gameId!}
+                          onStateChange={applyNewState}
+                          onSkip={async () => {
+                            const r = await sendAction(gameId!, { type: "etb_replacement_choice", choice: "skip" });
+                            appendLog(r.log);
+                            applyNewState(await getGameState(gameId!));
+                          }}
+                        />
+                      ) : (
+                        <div style={{ display: "flex", gap: 12 }}>
+                          <button
+                            style={{ flex: 1, padding: "10px 0", background: "#2a5a2a", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 14 }}
+                            onClick={async () => {
+                              const r = await sendAction(gameId!, { type: "etb_replacement_choice", choice: "pay" });
+                              appendLog(r.log);
+                              applyNewState(await getGameState(gameId!));
+                            }}
+                          >
+                            Pay Cost
+                          </button>
+                          <button
+                            style={{ flex: 1, padding: "10px 0", background: "#3a1a1a", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 14 }}
+                            onClick={async () => {
+                              const r = await sendAction(gameId!, { type: "etb_replacement_choice", choice: "skip" });
+                              appendLog(r.log);
+                              applyNewState(await getGameState(gameId!));
+                            }}
+                          >
+                            Let it go to graveyard
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </>
           )}
         </div>

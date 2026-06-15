@@ -88,18 +88,27 @@ export interface ManaPool {
   C: number;
 }
 
+export interface ArtifactManaAbility {
+  type: string;
+  produces: string[];
+  count: number;
+}
+
 export interface BattlefieldCard {
   id: string;
   name: string;
   image_uri: string | null;
   tapped: boolean;
   type_line: string;
+  oracle_text: string | null;
   power: string | null;
   toughness: string | null;
   is_attacking: boolean;
   attacking_target: string | null;
   is_blocking: boolean;
   entered_turn: number;
+  equipped_to: string | null;
+  mana_ability: ArtifactManaAbility | null;
 }
 
 export interface GraveyardCard {
@@ -150,6 +159,36 @@ export interface StackItem {
   controller_name: string;
 }
 
+export interface PendingEffectChoice {
+  source_card_id: string;
+  controller_id: string;
+  description: string;
+  optional: boolean;
+  needs_choice: boolean;
+}
+
+export interface ETBReplacementCost {
+  type: "discard" | "sacrifice" | "pay_life";
+  filter?: "land" | "any" | "creature";
+  count?: number;
+  amount?: number;
+}
+
+export interface ETBReplacement {
+  optional: boolean;
+  cost: ETBReplacementCost;
+  on_pay: string;
+  on_skip: string;
+  prompt: string;
+}
+
+export interface PendingETBReplacement {
+  stack_obj_id: string;
+  card_id: string;
+  card_name: string;
+  etb_replacement: ETBReplacement;
+}
+
 export interface GameState {
   game_id: string;
   mulligan_phase: "mulliganing" | "selecting_bottom" | "playing";
@@ -167,8 +206,11 @@ export interface GameState {
   stack: StackItem[];
   winner: string | null;
   combat_awaiting_human_action: "declare_attackers" | "declare_blockers" | null;
-  combat_attackers: Record<string, string>;   // card_id → defending_player_id
-  combat_blockers: Record<string, string[]>;  // attacker_id → [blocker_ids]
+  combat_attackers: Record<string, string>;
+  combat_blockers: Record<string, string[]>;
+  pending_choices: PendingEffectChoice[];
+  effect_queue_size: number;
+  pending_etb_replacement: PendingETBReplacement | null;
 }
 
 export interface AIDecisionHandCard {
@@ -214,7 +256,11 @@ export type ActionType =
   | "cast_commander"
   | "tap_land"
   | "untap_land"
-  | "complete_fetch";
+  | "tap_artifact"
+  | "untap_artifact"
+  | "complete_fetch"
+  | "etb_replacement_choice"
+  | "equip";
 
 export interface GameAction {
   type: ActionType;
@@ -224,4 +270,8 @@ export interface GameAction {
   pay_life?: boolean;
   attackers?: Record<string, string>;
   blocks?: Record<string, string>;
+  choice?: "pay" | "skip";
+  land_id?: string;
+  equipment_id?: string;
+  creature_id?: string;
 }

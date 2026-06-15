@@ -998,6 +998,83 @@
   padding: 2px;
 }
 
+/* Equipment UI */
+.bf-land-card.equippable {
+  cursor: pointer;
+}
+.bf-land-card.equippable:hover img {
+  outline: 2px solid #a78bfa;
+  border-radius: 3px;
+  filter: brightness(1.1);
+}
+.bf-land-card.selected-equip img {
+  outline: 2px solid #7c3aed;
+  border-radius: 3px;
+  filter: brightness(1.2);
+}
+.bf-land-card.equip-target {
+  cursor: crosshair;
+}
+.bf-land-card.equip-target img {
+  outline: 2px dashed #a78bfa;
+  border-radius: 3px;
+  animation: equip-pulse 1s ease-in-out infinite alternate;
+}
+@keyframes equip-pulse {
+  from { outline-color: #a78bfa; }
+  to   { outline-color: #7c3aed; }
+}
+
+.equip-badge {
+  position: absolute;
+  bottom: 2px;
+  left: 0; right: 0;
+  text-align: center;
+  font-size: 8px;
+  background: rgba(124, 58, 237, 0.85);
+  color: #fff;
+  border-radius: 0 0 3px 3px;
+  padding: 1px 0;
+  pointer-events: none;
+}
+
+.equip-attached-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 7px;
+  background: rgba(124, 58, 237, 0.75);
+  color: #fff;
+  border-radius: 3px;
+  padding: 1px 3px;
+  pointer-events: none;
+}
+
+.equip-mode-banner {
+  background: rgba(124, 58, 237, 0.15);
+  border: 1px solid #7c3aed;
+  color: #c4b5fd;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.equip-cancel-btn {
+  background: transparent;
+  border: 1px solid #7c3aed;
+  color: #c4b5fd;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.equip-cancel-btn:hover {
+  background: rgba(124, 58, 237, 0.3);
+}
+
 /* Right column: zone piles */
 .pp-zone-piles {
   display: flex;
@@ -2933,3 +3010,91 @@
 .block-badge   { color: #40c8ff; }
 .attacking-badge { color: #ff6020; top: 2px; left: 2px; }
 .blocking-badge  { color: #40d0ff; top: 2px; left: 2px; }
+
+/* ── Effect Queue Overlay ── */
+.effect-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 12, 18, 0.90);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 900;
+}
+
+.effect-panel {
+  background: var(--panel);
+  border: 1px solid var(--gold-border);
+  border-radius: 12px;
+  padding: 28px 32px;
+  max-width: 480px;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.7);
+}
+
+.effect-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.effect-header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--gold-light);
+}
+
+.effect-queue-count {
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px 10px;
+}
+
+.effect-description {
+  font-size: 15px;
+  color: var(--text-h);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  line-height: 1.5;
+}
+
+.effect-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.effect-queue-item {
+  font-size: 12px;
+  color: var(--text);
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.effect-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.effect-actions button {
+  flex: 1;
+  padding: 12px;
+  font-size: 14px;
+}
+
+.effect-error {
+  color: var(--red);
+  font-size: 13px;
+  text-align: center;
+  margin: 0;
+}

@@ -23,6 +23,7 @@ class Card:
 
     is_commander: bool = False
     mana_ability: Optional[ManaAbility] = None  # set after Scryfall enrichment for lands
+    effects_json: Optional[dict] = None          # LLM-generated effect spec from cards table
 
     # runtime state
     zone: Zone = Zone.LIBRARY
@@ -31,6 +32,8 @@ class Card:
     counters: dict[str, int] = field(default_factory=dict)
     owner_id: str = ""
     controller_id: str = ""
+    equipped_to: Optional[str] = None       # creature card_id this equipment is attached to
+    natural_mana_ability: Optional["ManaAbility"] = None  # mana ability before equipment was added
 
     # combat state
     is_attacking: bool = False

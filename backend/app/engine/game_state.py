@@ -6,6 +6,12 @@ from app.engine.player import Player
 from app.engine.stack import Stack
 from app.models.schemas import Phase, Step, Zone
 from app.engine.win_conditions import check_win_conditions
+from app.engine.effects import (
+    GameEvent, PendingEffect,
+    EVENT_ETB, EVENT_LTB, EVENT_DRAW, EVENT_DAMAGE_DEALT,
+    EVENT_UPKEEP_BEGIN, EVENT_TURN_BEGIN, EVENT_ATTACKED,
+    EVENT_SPELL_CAST, EVENT_LAND_PLAYED,
+)
 
 _STEP_SEQUENCE = [
     Step.UNTAP, Step.UPKEEP, Step.DRAW, Step.PRECOMBAT_MAIN,
@@ -53,6 +59,12 @@ class GameState:
         self.combat_blockers: dict[str, list[str]] = {}  # attacker_id → [blocker_ids]
         self.combat_awaiting_human_action: Optional[str] = None  # "declare_attackers" | "declare_blockers" | None
 
+        # Effect / rules engine
+        self.effect_queue: list[PendingEffect] = []      # triggered effects waiting to resolve
+        self.pending_choices: list[PendingEffect] = []   # optional effects awaiting human decision
+        self.static_flags: dict[str, bool] = {}          # refreshed each step by apply_static_effects
+        self.pending_etb_replacement: dict | None = None  # ETB replacement awaiting human choice
+
     @property
     def active_player(self) -> Player:
         return self.players[self.turn_order_index % len(self.players)]
@@ -89,6 +101,8 @@ class GameState:
 
     def _process_current_step(self) -> None:
         player = self.active_player
+        self.refresh_statics()
+
         if self.step == Step.UNTAP:
             player.land_played_this_turn = False
             player.mana_pool.empty()
@@ -97,11 +111,29 @@ class GameState:
             count = len(player.battlefield)
             if count:
                 self.log(f"{player.name} untaps {count} permanent(s)")
+            self.fire_event(GameEvent(
+                type=EVENT_TURN_BEGIN,
+                controller_id=player.id,
+            ))
+            self.flush_effect_queue()
+
+        elif self.step == Step.UPKEEP:
+            self.fire_event(GameEvent(
+                type=EVENT_UPKEEP_BEGIN,
+                controller_id=player.id,
+            ))
+            self.flush_effect_queue()
 
         elif self.step == Step.DRAW:
             drawn = player.draw(1)
             if drawn:
                 self.log(f"{player.name} draws a card")
+                self.fire_event(GameEvent(
+                    type=EVENT_DRAW,
+                    controller_id=player.id,
+                    data={"amount": 1},
+                ))
+                self.flush_effect_queue()
 
         elif self.step in (Step.PRECOMBAT_MAIN, Step.POSTCOMBAT_MAIN):
             if not player.is_human and player.ai is not None:
@@ -192,6 +224,11 @@ class GameState:
                         self.log(f"{defender.name}: {blocker.name} blocks {attacker.name}")
 
     def _resolve_combat_damage(self) -> None:
+        from app.engine.effects.keywords import (
+            has_deathtouch, has_lifelink, has_trample, has_flying,
+            has_first_strike, has_double_strike, has_indestructible,
+        )
+
         for attacker_id, defender_id in self.combat_attackers.items():
             attacker, attacker_owner = self._find_card_and_owner(attacker_id)
             if not attacker or not attacker.is_attacking:
@@ -208,6 +245,10 @@ class GameState:
                     else:
                         defender.take_damage(dmg)
                         self.log(f"{attacker.name} deals {dmg} damage to {defender.name}")
+                    # Lifelink
+                    if has_lifelink(attacker) and attacker_owner and dmg > 0:
+                        attacker_owner.life_total += dmg
+                        self.log(f"{attacker.name} lifelink: {attacker_owner.name} gains {dmg} life")
             else:
                 blocker_cards: list[Card] = []
                 for bid in blocker_ids:
@@ -217,7 +258,8 @@ class GameState:
 
                 remaining = attacker.parsed_power()
                 for bc in blocker_cards:
-                    assign = min(remaining, bc.parsed_toughness())
+                    # Deathtouch: any damage = lethal (assign 1 per blocker)
+                    assign = 1 if has_deathtouch(attacker) else min(remaining, bc.parsed_toughness())
                     if assign > 0:
                         bc.damage_taken += assign
                         self.log(f"{attacker.name} deals {assign} damage to {bc.name}")
@@ -225,23 +267,47 @@ class GameState:
                     if remaining <= 0:
                         break
 
+                # Trample: excess damage to player
+                if has_trample(attacker) and remaining > 0 and defender:
+                    defender.take_damage(remaining)
+                    self.log(f"{attacker.name} tramples for {remaining} to {defender.name}")
+                    if has_lifelink(attacker) and attacker_owner:
+                        attacker_owner.life_total += remaining
+
                 for bc in blocker_cards:
                     bp = bc.parsed_power()
                     if bp > 0:
                         attacker.damage_taken += bp
                         self.log(f"{bc.name} deals {bp} damage to {attacker.name}")
+                    # Blocker deathtouch: any damage to attacker is lethal
+                    if has_deathtouch(bc) and bp > 0:
+                        attacker.damage_taken = max(attacker.damage_taken, attacker.parsed_toughness())
 
-        # Destroy creatures with lethal damage
+        # Destroy creatures with lethal damage (respects Indestructible)
         to_destroy: list[tuple[Player, Card]] = []
         for p in self.players:
             for card in p.battlefield.permanents:
-                if card.is_creature and card.damage_taken > 0 and card.damage_taken >= card.parsed_toughness():
+                if (
+                    card.is_creature
+                    and card.damage_taken > 0
+                    and card.damage_taken >= card.parsed_toughness()
+                    and not has_indestructible(card)
+                ):
                     to_destroy.append((p, card))
         for p, card in to_destroy:
             p.battlefield.remove(card.id)
             card.zone = Zone.GRAVEYARD
             p.graveyard.add(card)
             self.log(f"{card.name} is destroyed")
+            self.fire_event(GameEvent(
+                type=EVENT_LTB,
+                source_card_id=card.id,
+                source_name=card.name,
+                controller_id=p.id,
+                data={"to_zone": "graveyard"},
+            ))
+        if to_destroy:
+            self.flush_effect_queue()
 
     def _clear_combat_state(self) -> None:
         for p in self.players:
@@ -317,6 +383,27 @@ class GameState:
     def log(self, message: str) -> None:
         self.game_log.append(message)
 
+    # ── Effect engine ─────────────────────────────────────────────────────────
+
+    def fire_event(self, event: GameEvent) -> None:
+        """Collect triggered effects from all battlefield permanents and queue them."""
+        from app.engine.effects.resolver import collect_triggers
+        new_effects = collect_triggers(event, self)
+        self.effect_queue.extend(new_effects)
+
+    def flush_effect_queue(self) -> None:
+        """Resolve all queued effects (AI-controlled or mandatory) until queue is empty."""
+        from app.engine.effects.resolver import resolve_next
+        max_iter = 200
+        i = 0
+        while self.effect_queue and i < max_iter:
+            resolve_next(self)
+            i += 1
+
+    def refresh_statics(self) -> None:
+        from app.engine.effects.resolver import apply_static_effects
+        apply_static_effects(self)
+
     # ── Mulligan queue helpers ────────────────────────────────────────────────
 
     @property
@@ -348,6 +435,9 @@ class GameState:
     def to_dict(self, include_ai_hands: bool = False) -> dict:
         return {
             "game_id": self.game_id,
+            "pending_choices": [e.to_dict() for e in self.pending_choices],
+            "effect_queue_size": len(self.effect_queue),
+            "pending_etb_replacement": self.pending_etb_replacement,
             "mulligan_phase": self.mulligan_phase,
             "mulligan_count": self.human_mulligan_count,
             "cards_to_bottom": self.cards_to_bottom,
@@ -420,6 +510,16 @@ class GameState:
                             "attacking_target": c.attacking_target,
                             "is_blocking": c.is_blocking,
                             "entered_turn": c.entered_turn,
+                            "equipped_to": getattr(c, "equipped_to", None),
+                            "oracle_text": c.oracle_text,
+                            "mana_ability": (
+                                {
+                                    "type": c.mana_ability.type,
+                                    "produces": c.mana_ability.produces,
+                                    "count": c.mana_ability.count,
+                                }
+                                if c.mana_ability else None
+                            ),
                         }
                         for c in p.battlefield.permanents if not c.is_land
                     ],

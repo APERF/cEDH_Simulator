@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from app.engine.mana_cost import parse_cost, can_pay, pay
 from app.engine.stack import StackObject
 from app.models.schemas import Zone
+from app.engine.effects import GameEvent, EVENT_SPELL_CAST, EVENT_ETB, EVENT_LAND_PLAYED
 
 if TYPE_CHECKING:
     from app.engine.card import Card
@@ -48,6 +49,13 @@ class BaseAI(ABC):
                 player.land_played_this_turn = True
                 game_state.log(f"{player.name} plays {playable.name}")
                 self._log_decision(game_state, "play_land", card=playable.name)
+                game_state.fire_event(GameEvent(
+                    type=EVENT_ETB,
+                    source_card_id=playable.id,
+                    source_name=playable.name,
+                    controller_id=player.id,
+                ))
+                game_state.flush_effect_queue()
                 game_state.ai_land_pause = True
                 return  # pause here; casting happens on the next advance_step call
 
@@ -58,6 +66,59 @@ class BaseAI(ABC):
                 land.tapped = True
                 land.tapped_for = color
                 player.mana_pool.add(color)
+
+        # Tap all untapped mana artifacts and dorks for mana
+        sacrifice_after: list = []
+        for artifact in list(player.battlefield.permanents):
+            if (
+                not artifact.is_land
+                and not artifact.tapped
+                and artifact.mana_ability
+                and artifact.mana_ability.produces
+            ):
+                ma = artifact.mana_ability
+                color = ma.produces[0]
+                artifact.tapped = True
+                artifact.tapped_for = color
+                count = ma.count or 1
+                for _ in range(count):
+                    player.mana_pool.add(color)
+                if artifact.name in ("Lion's Eye Diamond", "Jeweled Lotus"):
+                    sacrifice_after.append(artifact)
+        for artifact in sacrifice_after:
+            player.battlefield.remove(artifact.id)
+            artifact.zone = Zone.GRAVEYARD
+            player.graveyard.add(artifact)
+            game_state.log(f"{player.name} sacrifices {artifact.name}")
+
+        # Auto-equip any unattached equipment to the best available creature
+        import re as _re
+        _EQUIP_COST_RE = _re.compile(r"\bEquip\b\s*(\{[^}]+\}(?:\{[^}]+\})*)", _re.IGNORECASE)
+        creatures = [c for c in player.battlefield.permanents if c.is_creature]
+        for equip in list(player.battlefield.permanents):
+            if equip.is_land or equip.is_creature:
+                continue
+            oracle = equip.oracle_text or ""
+            if "Equip" not in oracle:
+                continue
+            if getattr(equip, "equipped_to", None):
+                continue  # already attached
+            # Parse equip cost
+            m = _EQUIP_COST_RE.search(oracle)
+            equip_cost_str = m.group(1) if m else "{0}"
+            from app.engine.mana_cost import parse_cost, can_pay, pay as pay_cost
+            cost = parse_cost(equip_cost_str)
+            if not can_pay(player.mana_pool, cost):
+                continue
+            # Pick creature that benefits most: prefer one with no mana_ability already
+            target = next((c for c in creatures if not c.mana_ability), None) or (creatures[0] if creatures else None)
+            if not target:
+                continue
+            pay_cost(player.mana_pool, cost)
+            equip.equipped_to = target.id
+            from app.api.routes.game import _apply_equipment_to_creature
+            _apply_equipment_to_creature(equip, target)
+            game_state.log(f"{player.name} equips {equip.name} to {target.name}")
 
         # Cast one commander from command zone if affordable — one spell per priority window
         for cmd in player.command_zone.commanders:
@@ -87,6 +148,13 @@ class BaseAI(ABC):
                 ))
                 game_state.log(f"{player.name} casts {cmd.name} from command zone")
                 self._log_decision(game_state, "cast_commander", card=cmd.name, card_cost=cmd.mana_cost)
+                game_state.fire_event(GameEvent(
+                    type=EVENT_SPELL_CAST,
+                    source_card_id=cmd.id,
+                    source_name=cmd.name,
+                    controller_id=player.id,
+                ))
+                game_state.flush_effect_queue()
                 return  # one spell per priority window; let the stack resolve before casting again
 
         # Cast one affordable spell from hand (lowest CMC first) — one spell per priority window
@@ -133,6 +201,13 @@ class BaseAI(ABC):
         ))
         game_state.log(f"{player.name} casts {card.name}")
         self._log_decision(game_state, "cast_spell", card=card.name, card_cost=card.mana_cost)
+        game_state.fire_event(GameEvent(
+            type=EVENT_SPELL_CAST,
+            source_card_id=card.id,
+            source_name=card.name,
+            controller_id=player.id,
+        ))
+        game_state.flush_effect_queue()
 
     def declare_attackers(self, game_state: GameState) -> dict[str, str]:
         """Return {card_id: defending_player_id} for creatures to send into combat."""

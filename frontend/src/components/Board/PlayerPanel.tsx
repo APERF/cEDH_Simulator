@@ -12,6 +12,8 @@ interface Props {
   onCastCommander: (cardId: string) => void;
   onPlayCard: (cardId: string, actionType: "play_land" | "cast_spell", opts?: { payLife?: boolean }) => void;
   onTapLand: (cardId: string, color?: string, untap?: boolean) => void;
+  onTapArtifact?: (cardId: string, color?: string, untap?: boolean) => void;
+  onEquip?: (equipmentId: string, creatureId: string) => void;
   aiHandCards?: HandCard[];
   allPlayers?: Player[];   // for name lookup in combat badges
   // combat
@@ -184,16 +186,17 @@ function GraveyardModal({ cards, playerName, zoneName = "Graveyard", onClose }: 
 
 export function PlayerPanel({
   player, isActive, isHumanTurn, currentStep, currentTurn,
-  onCastCommander, onPlayCard, onTapLand, aiHandCards,
+  onCastCommander, onPlayCard, onTapLand, onTapArtifact, onEquip, aiHandCards,
   combatMode, selectedAttackers, pendingAttacker, pendingBlocks, pendingBlocker,
   humanPlayerId, allPlayers, onToggleAttacker, onSelectAttackTarget, onToggleBlocker, onAssignBlockTarget, onUnassignBlock,
 }: Props) {
   const [hovered, setHovered] = useState<{ card: HandCard | CommanderCard | LandCard | BattlefieldCard; rect: DOMRect } | null>(null);
-  const [colorPicker, setColorPicker] = useState<{ landId: string; produces: string[]; anchor: DOMRect } | null>(null);
+  const [colorPicker, setColorPicker] = useState<{ produces: string[]; anchor: DOMRect; onSelect: (color: string) => void } | null>(null);
   const [shockPrompt, setShockPrompt] = useState<{ cardId: string; name: string } | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [showGY, setShowGY] = useState(false);
   const [showExile, setShowExile] = useState(false);
+  const [equipMode, setEquipMode] = useState<string | null>(null); // equipment card id being equipped
   const isMainPhase = currentStep === "precombat_main" || currentStep === "postcombat_main";
 
   function handleLandClick(land: LandCard, e: React.MouseEvent<HTMLDivElement>) {
@@ -204,9 +207,38 @@ export function PlayerPanel({
     }
     const ma = land.mana_ability;
     if (ma && ma.produces.length > 1) {
-      setColorPicker({ landId: land.id, produces: ma.produces, anchor: e.currentTarget.getBoundingClientRect() });
+      setColorPicker({
+        produces: ma.produces,
+        anchor: e.currentTarget.getBoundingClientRect(),
+        onSelect: (color) => onTapLand(land.id, color),
+      });
     } else {
       onTapLand(land.id, ma?.produces[0]);
+    }
+  }
+
+  function handleArtifactClick(card: BattlefieldCard, e: React.MouseEvent<HTMLDivElement>) {
+    if (!player.is_human || !isHumanTurn || !onTapArtifact) return;
+    if (card.tapped) {
+      onTapArtifact(card.id, undefined, true);
+      return;
+    }
+    const ma = card.mana_ability;
+    if (!ma || !ma.produces.length) return;
+    if (ma.type === "any_color") {
+      setColorPicker({
+        produces: ["W", "U", "B", "R", "G"],
+        anchor: e.currentTarget.getBoundingClientRect(),
+        onSelect: (color) => onTapArtifact(card.id, color),
+      });
+    } else if (ma.produces.length > 1) {
+      setColorPicker({
+        produces: ma.produces,
+        anchor: e.currentTarget.getBoundingClientRect(),
+        onSelect: (color) => onTapArtifact(card.id, color),
+      });
+    } else {
+      onTapArtifact(card.id, ma.produces[0]);
     }
   }
   const cmdDamage = Object.entries(player.commander_damage).filter(([, dmg]) => dmg > 0);
@@ -250,6 +282,12 @@ export function PlayerPanel({
 
       {player.is_human && player.mana_pool != null && (
         <ManaPoolDisplay pool={player.mana_pool} />
+      )}
+      {equipMode && (
+        <div className="equip-mode-banner">
+          Select a creature to equip, or{" "}
+          <button className="equip-cancel-btn" onClick={() => setEquipMode(null)}>Cancel</button>
+        </div>
       )}
 
       {/* Main zone layout: Command Zone | Battlefield | Library/GY/Exile */}
@@ -328,7 +366,42 @@ export function PlayerPanel({
                     if (isValidBlocker && !isThisPendingBlocker && !isAssignedBlocker) combatClass += " blockable";
                     if (isClickableAttackTarget) combatClass += " attack-target";
 
-                    function handleCreatureClick() {
+                    const isManaProducer = isCreature && isHuman && isHumanTurn && !!card.mana_ability?.produces?.length;
+                    const manaClass = isManaProducer && !combatMode && !equipMode
+                      ? (card.tapped ? " untappable" : " tappable")
+                      : "";
+
+                    // Equip targeting: when equipMode is active and this is a creature on the human's side
+                    const isEquipTarget = !!equipMode && isCreature && isHuman && !combatMode;
+                    if (isEquipTarget) combatClass += " equip-target";
+
+                    function handleCreatureClick(e: React.MouseEvent<HTMLDivElement>) {
+                      // Equip target selection
+                      if (equipMode && isCreature && isHuman) {
+                        onEquip?.(equipMode, card.id);
+                        setEquipMode(null);
+                        return;
+                      }
+                      // Mana dork tap
+                      if (!combatMode && !equipMode && isManaProducer && !card.tapped && onTapArtifact) {
+                        const ma = card.mana_ability!;
+                        if (ma.type === "any_color" || ma.produces.length > 1) {
+                          setColorPicker({
+                            produces: ma.type === "any_color" ? ["W", "U", "B", "R", "G"] : ma.produces,
+                            anchor: e.currentTarget.getBoundingClientRect(),
+                            onSelect: (color) => { setColorPicker(null); onTapArtifact(card.id, color); },
+                          });
+                        } else {
+                          onTapArtifact(card.id, ma.produces[0]);
+                        }
+                        return;
+                      }
+                      // Mana dork untap
+                      if (!combatMode && !equipMode && isManaProducer && card.tapped && onTapArtifact) {
+                        onTapArtifact(card.id, undefined, true);
+                        return;
+                      }
+                      // Combat
                       if (combatMode === "select_attackers" && isValidAttacker) {
                         onToggleAttacker?.(card.id);
                       } else if (combatMode === "select_blockers") {
@@ -348,9 +421,9 @@ export function PlayerPanel({
                       <div
                         key={card.id}
                         data-bf-card={card.id}
-                        className={`bf-land-card${card.tapped ? " tapped" : ""}${combatClass}`}
+                        className={`bf-land-card${card.tapped ? " tapped" : ""}${combatClass}${manaClass}`}
                         onClick={handleCreatureClick}
-                        style={{ cursor: (isValidAttacker || isValidBlocker || isClickableAttackTarget) ? "pointer" : undefined }}
+                        style={{ cursor: (isEquipTarget) || (isManaProducer && !combatMode && !equipMode) || isValidAttacker || isValidBlocker || isClickableAttackTarget ? "pointer" : undefined }}
                       >
                         {card.image_uri ? (
                           <img
@@ -432,27 +505,59 @@ export function PlayerPanel({
               <div className="bf-area">
                 {(player.permanents ?? []).filter(c => c.type_line?.toLowerCase().includes("artifact")).length > 0 ? (
                   <div className="bf-lands-cards">
-                    {(player.permanents ?? []).filter(c => c.type_line?.toLowerCase().includes("artifact")).map((card: BattlefieldCard) => (
-                      <div
-                        key={card.id}
-                        data-bf-card={card.id}
-                        className={`bf-land-card${card.tapped ? " tapped" : ""}`}
-                      >
-                        {card.image_uri ? (
-                          <img
-                            src={card.image_uri}
-                            alt={card.name}
-                            title={card.name}
-                            onMouseEnter={(e) =>
-                              setHovered({ card, rect: e.currentTarget.getBoundingClientRect() })
-                            }
-                            onMouseLeave={() => setHovered(null)}
-                          />
-                        ) : (
-                          <div className="bf-land-card-fallback">{card.name}</div>
-                        )}
-                      </div>
-                    ))}
+                    {(player.permanents ?? []).filter(c => c.type_line?.toLowerCase().includes("artifact")).map((card: BattlefieldCard) => {
+                      const hasMana = !!card.mana_ability?.produces?.length;
+                      const canInteract = player.is_human && isHumanTurn && hasMana && !!onTapArtifact;
+                      const isEquipment = player.is_human && isHumanTurn && !!onEquip && (
+                        card.type_line?.toLowerCase().includes("equipment") ||
+                        (card.oracle_text || "").includes("Equip")
+                      );
+                      const isSelectedEquip = equipMode === card.id;
+                      let artifactClass = `bf-land-card${card.tapped ? " tapped" : ""}`;
+                      if (canInteract && !card.tapped) artifactClass += " tappable";
+                      if (canInteract && card.tapped) artifactClass += " untappable";
+                      if (isEquipment && !isSelectedEquip) artifactClass += " equippable";
+                      if (isSelectedEquip) artifactClass += " selected-equip";
+
+                      function handleArtifactCardClick(e: React.MouseEvent<HTMLDivElement>) {
+                        if (isEquipment && !card.tapped) {
+                          // Toggle equip mode for this equipment
+                          setEquipMode(prev => prev === card.id ? null : card.id);
+                          return;
+                        }
+                        if (canInteract) handleArtifactClick(card, e);
+                      }
+
+                      return (
+                        <div
+                          key={card.id}
+                          data-bf-card={card.id}
+                          className={artifactClass}
+                          onClick={handleArtifactCardClick}
+                          style={{ cursor: canInteract || isEquipment ? "pointer" : undefined }}
+                        >
+                          {card.image_uri ? (
+                            <img
+                              src={card.image_uri}
+                              alt={card.name}
+                              title={card.name}
+                              onMouseEnter={(e) =>
+                                setHovered({ card, rect: e.currentTarget.getBoundingClientRect() })
+                              }
+                              onMouseLeave={() => setHovered(null)}
+                            />
+                          ) : (
+                            <div className="bf-land-card-fallback">{card.name}</div>
+                          )}
+                          {isSelectedEquip && (
+                            <div className="equip-badge">Equipping…</div>
+                          )}
+                          {card.equipped_to && (
+                            <div className="equip-attached-badge">⚙ Equipped</div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="bf-empty">Empty</div>
@@ -578,7 +683,7 @@ export function PlayerPanel({
           produces={colorPicker.produces}
           anchor={colorPicker.anchor}
           onSelect={(color) => {
-            onTapLand(colorPicker.landId, color);
+            colorPicker.onSelect(color);
             setColorPicker(null);
           }}
           onClose={() => setColorPicker(null)}

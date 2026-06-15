@@ -48,6 +48,39 @@ class Stack:
         obj = self.pop()
         if obj and obj.resolve_fn:
             obj.resolve_fn(game_state)
+            # Fire ETB event if the card is now on the battlefield
+            from app.engine.effects import GameEvent, EVENT_ETB, EVENT_SPELL_CAST
+            from app.models.schemas import Zone as _Zone
+            if obj.card.zone == _Zone.BATTLEFIELD:
+                event = GameEvent(
+                    type=EVENT_ETB,
+                    source_card_id=obj.card.id,
+                    source_name=obj.card.name,
+                    controller_id=obj.controller_id,
+                )
+                game_state.fire_event(event)
+                game_state.flush_effect_queue()
+            elif obj.card.zone == _Zone.GRAVEYARD:
+                # Check explicit spell registry first
+                from app.engine.effects.registry import SPELL_REGISTRY
+                spell_fn = SPELL_REGISTRY.get(obj.card.name)
+                if spell_fn:
+                    spell_fn(game_state, obj.controller_id, obj.card)
+                else:
+                    # Execute the spell's own effects (Dark Ritual, board wipes, etc.)
+                    from app.engine.effects.interpreter import execute_spell
+                    execute_spell(obj.card, game_state, obj.controller_id)
+
+                # Fire for permanents watching (Rhystic Study, Mystic Remora, etc.)
+                event = GameEvent(
+                    type=EVENT_SPELL_CAST,
+                    source_card_id=obj.card.id,
+                    source_name=obj.card.name,
+                    controller_id=obj.controller_id,
+                    data={"resolved": True},
+                )
+                game_state.fire_event(event)
+                game_state.flush_effect_queue()
         return obj
 
     @property
