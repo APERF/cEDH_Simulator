@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy import Boolean, DateTime, Float, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional
 from app.db.database import Base
@@ -16,14 +15,14 @@ class CardData(Base):
     cmc: Mapped[float | None] = mapped_column(Float, nullable=True)
     type_line: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     oracle_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    keywords: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
-    colors: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
-    color_identity: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
+    keywords: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    colors: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    color_identity: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     power: Mapped[str | None] = mapped_column(String(10), nullable=True)
     toughness: Mapped[str | None] = mapped_column(String(10), nullable=True)
     image_uri: Mapped[str | None] = mapped_column(String(500), nullable=True)
     layout: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    effects_json: Mapped[Optional[dict]] = mapped_column(JSONB(), nullable=True)
+    effects_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     last_synced: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

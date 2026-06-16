@@ -12,7 +12,7 @@ from app.engine.game_state import GameState
 from app.decks.parser import parse_decklist, extract_commanders
 from app.cards.scryfall import fetch_collection_images, apply_cached_data
 from app.engine.mana_cost import parse_cost, can_pay, pay
-from app.engine.mana_ability import parse_fetch_targets
+from app.engine.mana_ability import parse_fetch_targets, ManaAbility
 from app.engine.stack import StackObject
 from app.ai.base_ai import BaseAI
 from app.ai.archetypes.kinnan import KinnanAI
@@ -952,6 +952,46 @@ async def player_action(game_id: str, action: dict):
 
         from app.engine.effects.interpreter import _exile_library_for_name
         _exile_library_for_name(gs, pending["player_id"], named_card, pending["spell_name"])
+        gs.check_state_based_actions()
+        return {"status": "ok", "log": gs.game_log[log_before:]}
+
+    if action_type == "imprint_choice":
+        log_before = len(gs.game_log)
+        if not gs.pending_imprint_choice:
+            raise HTTPException(status_code=400, detail="No pending imprint choice")
+        pending = gs.pending_imprint_choice
+        gs.pending_imprint_choice = None
+
+        chosen_id = (action.get("card_id") or "").strip()
+        if not chosen_id:
+            raise HTTPException(status_code=400, detail="Must provide a card_id to imprint")
+
+        player = gs.get_player(pending["player_id"])
+        if not player:
+            raise HTTPException(status_code=400, detail="Player not found")
+
+        chosen = next((c for c in player.hand._cards if c.id == chosen_id), None)
+        if not chosen:
+            raise HTTPException(status_code=400, detail="Chosen card not in hand")
+
+        valid_ids = {c["id"] for c in pending["candidates"]}
+        if chosen_id not in valid_ids:
+            raise HTTPException(status_code=400, detail="Card is not a valid imprint target")
+
+        mox = next((c for c in player.battlefield.permanents if c.id == pending["mox_id"]), None)
+
+        player.hand._cards.remove(chosen)
+        chosen.zone = Zone.EXILE
+        player.exile.add(chosen)
+        gs.log(f"Chrome Mox imprints {chosen.name}")
+
+        if mox is not None:
+            colors = list(dict.fromkeys((chosen.color_identity or []) + (chosen.colors or [])))
+            if colors:
+                mtype = "basic" if len(colors) == 1 else ("dual" if len(colors) == 2 else "tri")
+                mox.mana_ability = ManaAbility(type=mtype, produces=colors, count=1)
+            else:
+                mox.mana_ability = None
         gs.check_state_based_actions()
         return {"status": "ok", "log": gs.game_log[log_before:]}
 

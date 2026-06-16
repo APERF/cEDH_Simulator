@@ -143,34 +143,6 @@ _simple_mana_etb("Basalt Monolith")
 # via _exile_library_for_name — no per-card Python needed here.
 
 
-# ── Chrome Mox ────────────────────────────────────────────────────────────────
-
-def _chrome_mox_etb(event: GameEvent, gs: "GameState", card: "Card") -> None:
-    if card is None:
-        return
-    # Imprint: exile a nonartifact, nonland card from hand (AI: cheapest colored card)
-    controller = gs.get_player(card.controller_id)
-    if not controller:
-        return
-    candidates = [c for c in controller.hand.cards if not c.is_land and not c.is_artifact and c.colors]
-    if candidates:
-        imprint = min(candidates, key=lambda c: c.cmc)
-        controller.hand._cards.remove(imprint)
-        from app.models.schemas import Zone
-        imprint.zone = Zone.EXILE
-        controller.exile.add(imprint)
-        if not hasattr(card, "counters"):
-            card.counters = {}
-        card.counters["imprint_color"] = imprint.colors[0] if imprint.colors else "C"
-        gs.log(f"{card.name} imprints {imprint.name}")
-
-_reg("Chrome Mox", [CardEffect(
-    trigger=EVENT_ETB,
-    resolve=_chrome_mox_etb,
-    condition=lambda ev, gs, card: card is not None and ev.source_card_id == card.id,
-    optional=True,
-    description="Imprint a nonartifact, nonland card from hand",
-)])
 
 
 # ── Mox Diamond ───────────────────────────────────────────────────────────────
@@ -465,12 +437,24 @@ def _chrome_mox_etb(event: GameEvent, gs: "GameState", card: "Card") -> None:
     controller = gs.get_player(card.controller_id)
     if not controller:
         return
-    from app.models.schemas import Zone
     candidates = [
         c for c in controller.hand._cards
         if "Artifact" not in (c.type_line or "") and "Land" not in (c.type_line or "")
     ]
-    if candidates:
+    if not candidates:
+        gs.log("Chrome Mox: nothing to imprint")
+        card.mana_ability = None
+        return
+    if controller.is_human:
+        gs.pending_imprint_choice = {
+            "player_id": controller.id,
+            "mox_id": card.id,
+            "candidates": [{"id": c.id, "name": c.name} for c in candidates],
+        }
+        gs.log(f"Chrome Mox: waiting for {controller.name} to choose a card to imprint")
+    else:
+        from app.models.schemas import Zone
+        from app.engine.mana_ability import ManaAbility
         imprint = max(candidates, key=lambda c: c.cmc or 0)
         controller.hand._cards.remove(imprint)
         imprint.zone = Zone.EXILE
@@ -478,13 +462,10 @@ def _chrome_mox_etb(event: GameEvent, gs: "GameState", card: "Card") -> None:
         gs.log(f"Chrome Mox imprints {imprint.name}")
         colors = list(dict.fromkeys((imprint.color_identity or []) + (imprint.colors or [])))
         if colors:
-            from app.engine.mana_ability import ManaAbility
-            card.mana_ability = ManaAbility(type="any_color", produces=colors, count=1)
+            mtype = "basic" if len(colors) == 1 else ("dual" if len(colors) == 2 else "tri")
+            card.mana_ability = ManaAbility(type=mtype, produces=colors, count=1)
         else:
             card.mana_ability = None
-    else:
-        gs.log("Chrome Mox: nothing to imprint")
-        card.mana_ability = None
 
 _reg("Chrome Mox", [CardEffect(
     trigger=EVENT_ETB,

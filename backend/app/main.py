@@ -1,15 +1,33 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI
+import logging
+import traceback
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from app.api.routes import game, decks, cards
 from app.api.routes import auth as auth_routes
 from app.db.database import Base, engine, SessionLocal
 from app.db.models import User
 from app.auth.utils import hash_password
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("cedh")
+
 app = FastAPI(title="cEDH Simulator", version="0.1.0")
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    logger.info(f"→ {request.method} {request.url.path}")
+    try:
+        response = await call_next(request)
+        logger.info(f"← {response.status_code} {request.url.path}")
+        return response
+    except Exception as exc:
+        logger.error(f"✗ UNHANDLED {request.url.path}: {exc}\n{traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"detail": str(exc)})
 
 app.add_middleware(
     CORSMiddleware,

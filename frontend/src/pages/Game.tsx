@@ -286,6 +286,58 @@ function DCNameModal({ spellName, gameId, onStateChange }: {
   );
 }
 
+// ── Chrome Mox imprint modal ──────────────────────────────────────────────────
+
+function ImprintModal({ candidates, gameId, onStateChange }: {
+  candidates: { id: string; name: string }[];
+  gameId: string;
+  onStateChange: (s: any) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { appendLog } = useGameStore();
+
+  async function handleChoose(cardId: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await sendAction(gameId, { type: "imprint_choice", card_id: cardId });
+      appendLog(r.log);
+      onStateChange(await getGameState(gameId));
+    } catch {
+      setError("Failed to submit. Try again.");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fetch-overlay" style={{ zIndex: 9990 }}>
+      <div className="fetch-modal" style={{ maxWidth: 420 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6, color: "var(--gold-light)" }}>
+          Chrome Mox — Imprint
+        </div>
+        <div style={{ fontSize: 13, color: "var(--text)", marginBottom: 16 }}>
+          Choose a nonartifact, nonland card from your hand to exile (imprint).
+        </div>
+        {error && <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 8 }}>{error}</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {candidates.map(c => (
+            <button
+              key={c.id}
+              className="primary"
+              disabled={loading}
+              onClick={() => handleChoose(c.id)}
+              style={{ padding: "10px 14px", textAlign: "left" }}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Game component ───────────────────────────────────────────────────────────
 
 export function Game() {
@@ -639,6 +691,13 @@ export function Game() {
               {gameState?.pending_dc_name && (
                 <DCNameModal
                   spellName={gameState.pending_dc_name.spell_name}
+                  gameId={gameId!}
+                  onStateChange={applyNewState}
+                />
+              )}
+              {gameState?.pending_imprint_choice && (
+                <ImprintModal
+                  candidates={gameState.pending_imprint_choice.candidates}
                   gameId={gameId!}
                   onStateChange={applyNewState}
                 />

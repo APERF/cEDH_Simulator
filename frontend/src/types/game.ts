@@ -212,6 +212,11 @@ export interface GameState {
   effect_queue_size: number;
   pending_etb_replacement: PendingETBReplacement | null;
   pending_dc_name: { player_id: string; spell_name: string } | null;
+  pending_imprint_choice: {
+    player_id: string;
+    mox_id: string;
+    candidates: { id: string; name: string }[];
+  } | null;
 }
 
 export interface AIDecisionHandCard {
@@ -262,6 +267,7 @@ export type ActionType =
   | "complete_fetch"
   | "etb_replacement_choice"
   | "dc_name_choice"
+  | "imprint_choice"
   | "equip";
 
 export interface GameAction {

@@ -69,6 +69,7 @@ class GameState:
         self.static_flags: dict[str, bool] = {}          # refreshed each step by apply_static_effects
         self.pending_etb_replacement: dict | None = None  # ETB replacement awaiting human choice
         self.pending_dc_name: dict | None = None          # Demonic Consultation name choice awaiting human
+        self.pending_imprint_choice: dict | None = None   # Chrome Mox imprint card choice awaiting human
 
     @property
     def active_player(self) -> Player:
@@ -450,6 +451,7 @@ class GameState:
             "effect_queue_size": len(self.effect_queue),
             "pending_etb_replacement": self.pending_etb_replacement,
             "pending_dc_name": self.pending_dc_name,
+            "pending_imprint_choice": self.pending_imprint_choice,
             "mulligan_phase": self.mulligan_phase,
             "mulligan_count": self.human_mulligan_count,
             "cards_to_bottom": self.cards_to_bottom,
