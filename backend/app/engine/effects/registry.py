@@ -592,7 +592,7 @@ def _jeska_will_resolve(gs: "GameState", controller_id: str, card: "Card") -> No
         exiled = []
         for _ in range(3):
             if controller.library._cards:
-                c = controller.library._cards.pop(0)
+                c = controller.library._cards.popleft()
                 c.zone = Zone.HAND
                 controller.hand._cards.append(c)
                 exiled.append(c.name)

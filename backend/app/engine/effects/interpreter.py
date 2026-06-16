@@ -198,7 +198,7 @@ def _run_action(action: dict, gs: "GameState", controller_id: str, card: "Card")
             milled = 0
             for _ in range(amount):
                 if target.library._cards:
-                    c = target.library._cards.pop(0)
+                    c = target.library._cards.popleft()
                     c.zone = Zone.GRAVEYARD
                     target.graveyard.add(c)
                     milled += 1
@@ -222,7 +222,7 @@ def _run_action(action: dict, gs: "GameState", controller_id: str, card: "Card")
             elif destination == "top_of_library":
                 # Shuffle first (implicit in searching), then place on top
                 player.library.shuffle()
-                player.library._cards.insert(0, chosen)
+                player.library._cards.appendleft(chosen)
                 chosen.zone = Zone.LIBRARY
             elif destination == "battlefield":
                 chosen.zone = Zone.BATTLEFIELD
@@ -237,7 +237,7 @@ def _run_action(action: dict, gs: "GameState", controller_id: str, card: "Card")
         put_back = sorted_hand[:min(amount, len(sorted_hand))]
         for c in put_back:
             player.hand._cards.remove(c)
-            player.library._cards.insert(0, c)
+            player.library._cards.appendleft(c)
             c.zone = Zone.LIBRARY
         gs.log(f"{card_name}: {player.name} puts {len(put_back)} card(s) on top of library")
 
@@ -278,13 +278,13 @@ def _exile_library_for_name(gs: "GameState", player_id: str, named_card: str, sp
     named_lower = named_card.strip().lower()
     exiled_count = 0
     for _ in range(min(6, len(player.library._cards))):
-        c = player.library._cards.pop(0)
+        c = player.library._cards.popleft()
         c.zone = Zone.EXILE
         player.exile.add(c)
         exiled_count += 1
     found = None
     while player.library._cards:
-        c = player.library._cards.pop(0)
+        c = player.library._cards.popleft()
         if c.name.lower() == named_lower:
             found = c
             break
