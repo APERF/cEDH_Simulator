@@ -83,7 +83,7 @@ class BaseAI(ABC):
                 count = ma.count or 1
                 for _ in range(count):
                     player.mana_pool.add(color)
-                if artifact.name in ("Lion's Eye Diamond", "Jeweled Lotus"):
+                if artifact.name in ("Lion's Eye Diamond", "Jeweled Lotus", "Lotus Petal"):
                     sacrifice_after.append(artifact)
         for artifact in sacrifice_after:
             player.battlefield.remove(artifact.id)

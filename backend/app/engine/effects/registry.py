@@ -133,27 +133,82 @@ _simple_mana_etb("Grim Monolith")
 _simple_mana_etb("Basalt Monolith")
 
 
-# ── Lotus Petal ───────────────────────────────────────────────────────────────
+# Lotus Petal: activated ability ({T}, Sacrifice: Add one mana of any color).
+# Handled entirely by the tap_artifact action in game.py — no ETB effect needed.
 
-def _lotus_petal_resolve(event: GameEvent, gs: "GameState", card: "Card") -> None:
-    if card is None:
+
+# ── Library-exile spells (Oracle combo enablers) ──────────────────────────────
+
+def _exile_library_for_name(gs: "GameState", player_id: str, named_card: str, spell_name: str) -> None:
+    """
+    Core DC/Tainted Pact resolution once the named card is known.
+    Exile top 6, then reveal cards one by one:
+      - If the named card is found → put it in hand, stop.
+      - If library is exhausted → entire library was exiled (combo line).
+    """
+    from app.models.schemas import Zone
+    player = gs.get_player(player_id)
+    if not player:
         return
-    # Sacrifice immediately after ETB and add {C} (simplified; player chooses color in full impl)
-    controller = gs.get_player(card.controller_id)
-    if controller:
-        controller.battlefield.remove(card.id)
-        from app.models.schemas import Zone
-        card.zone = Zone.GRAVEYARD
-        controller.graveyard.add(card)
-        _add_mana(gs, card.controller_id, C=1)
-        gs.log(f"{card.name}: sacrificed, adds {{C}}")
 
-_reg("Lotus Petal", [CardEffect(
-    trigger=EVENT_ETB,
-    resolve=_lotus_petal_resolve,
-    condition=lambda ev, gs, card: card is not None and ev.source_card_id == card.id,
-    description="Sacrifice: Add {C}",
-)])
+    named_lower = named_card.strip().lower()
+
+    # Exile top 6 first
+    exiled_count = 0
+    for _ in range(min(6, len(player.library._cards))):
+        c = player.library._cards.pop(0)
+        c.zone = Zone.EXILE
+        player.exile.add(c)
+        exiled_count += 1
+
+    # Reveal cards until named card found or library empty
+    found = None
+    while player.library._cards:
+        c = player.library._cards.pop(0)
+        if c.name.lower() == named_lower:
+            found = c
+            break
+        c.zone = Zone.EXILE
+        player.exile.add(c)
+        exiled_count += 1
+
+    if found:
+        found.zone = "hand"
+        player.hand.add(found)
+        gs.log(f"{spell_name}: {player.name} named '{named_card}' — found it, {exiled_count} cards exiled")
+    else:
+        gs.log(f"{spell_name}: {player.name} named '{named_card}' — not found, entire library exiled ({exiled_count} cards)")
+
+
+def _demonic_consultation_resolve(gs: "GameState", controller_id: str, card: "Card") -> None:
+    player = gs.get_player(controller_id)
+    if not player:
+        return
+    spell_name = card.name if card else "Demonic Consultation"
+    if player.is_human:
+        # Pause and wait for the human to name a card via the dc_name_choice action
+        gs.pending_dc_name = {"player_id": controller_id, "spell_name": spell_name}
+        gs.log(f"{spell_name}: waiting for {player.name} to name a card")
+    else:
+        # AI always names a card not in its deck to exile the whole library (Oracle combo line)
+        _exile_library_for_name(gs, controller_id, "__nonexistent__", spell_name)
+
+_spell("Demonic Consultation", _demonic_consultation_resolve)
+
+
+def _tainted_pact_resolve(gs: "GameState", controller_id: str, card: "Card") -> None:
+    player = gs.get_player(controller_id)
+    if not player:
+        return
+    spell_name = card.name if card else "Tainted Pact"
+    if player.is_human:
+        gs.pending_dc_name = {"player_id": controller_id, "spell_name": spell_name}
+        gs.log(f"{spell_name}: waiting for {player.name} to name a card")
+    else:
+        # In a singleton deck every name is unique — exile everything (combo line)
+        _exile_library_for_name(gs, controller_id, "__nonexistent__", spell_name)
+
+_spell("Tainted Pact", _tainted_pact_resolve)
 
 
 # ── Chrome Mox ────────────────────────────────────────────────────────────────

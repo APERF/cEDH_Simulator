@@ -3278,3 +3278,52 @@
   text-align: center;
   margin: 0;
 }
+
+/* ── Win condition modal ─────────────────────────────────────────────────── */
+
+.win-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.win-modal {
+  background: var(--panel);
+  border: 1px solid var(--gold-border);
+  border-radius: 16px;
+  padding: 48px 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  box-shadow: 0 0 60px rgba(201, 165, 90, 0.25), 0 24px 64px rgba(0, 0, 0, 0.9);
+  max-width: 480px;
+  width: 90vw;
+  text-align: center;
+}
+
+.win-trophy {
+  font-size: 64px;
+  line-height: 1;
+}
+
+.win-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--gold-light);
+  margin: 0;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+}
+
+.win-new-game-btn {
+  margin-top: 8px;
+  padding: 12px 36px;
+  font-size: 15px;
+  font-weight: 600;
+}

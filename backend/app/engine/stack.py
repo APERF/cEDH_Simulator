@@ -60,6 +60,9 @@ class Stack:
                 )
                 game_state.fire_event(event)
                 game_state.flush_effect_queue()
+                if not game_state.winner:
+                    from app.engine.win_conditions import check_etb_win_conditions
+                    check_etb_win_conditions(game_state, obj.card, obj.controller_id)
             elif obj.card.zone == _Zone.GRAVEYARD:
                 # Check explicit spell registry first
                 from app.engine.effects.registry import SPELL_REGISTRY
@@ -70,6 +73,10 @@ class Stack:
                     # Execute the spell's own effects (Dark Ritual, board wipes, etc.)
                     from app.engine.effects.interpreter import execute_spell
                     execute_spell(obj.card, game_state, obj.controller_id)
+
+                if not game_state.winner:
+                    from app.engine.win_conditions import check_spell_resolve_win_conditions
+                    check_spell_resolve_win_conditions(game_state, obj.card, obj.controller_id)
 
                 # Fire for permanents watching (Rhystic Study, Mystic Remora, etc.)
                 event = GameEvent(

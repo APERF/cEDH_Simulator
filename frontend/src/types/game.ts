@@ -211,6 +211,7 @@ export interface GameState {
   pending_choices: PendingEffectChoice[];
   effect_queue_size: number;
   pending_etb_replacement: PendingETBReplacement | null;
+  pending_dc_name: { player_id: string; spell_name: string } | null;
 }
 
 export interface AIDecisionHandCard {
@@ -260,6 +261,7 @@ export type ActionType =
   | "untap_artifact"
   | "complete_fetch"
   | "etb_replacement_choice"
+  | "dc_name_choice"
   | "equip";
 
 export interface GameAction {
@@ -272,6 +274,7 @@ export interface GameAction {
   blocks?: Record<string, string>;
   choice?: "pay" | "skip";
   land_id?: string;
+  named_card?: string;
   equipment_id?: string;
   creature_id?: string;
 }

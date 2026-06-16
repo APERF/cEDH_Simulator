@@ -24,8 +24,61 @@ Each object MUST include ALL of these top-level fields:
   "equip_cost": "<mana string like '{2}' if is_equipment, else null>",
   "grants_to_equipped": [ <ability objects granted to equipped creature, see below> ],
   "etb_replacement": <object or null — for 'If X would enter' replacement effects>,
+  "win_condition": <null or win condition object — see below>,
   "effects": [ <triggered/spell effect objects> ]
 }
+
+## win_condition
+
+Set win_condition to a non-null object ONLY when the card's oracle text contains the phrase "you win the game".
+Set win_condition to null for all other cards.
+
+Win condition object format:
+{
+  "trigger": "<when this win condition is checked — see trigger values below>",
+  "condition_type": "<how to evaluate the condition — see types below>",
+  "threshold": <integer, for count/life threshold types>,
+  "permanent_type": "<creature|artifact|enchantment — for permanent_count_gte>",
+  "token_name": "<token name — for token_name_count_gte>",
+  "devotion_color": "<W|U|B|R|G — for devotion_gte_library>",
+  "llm_condition_text": "<oracle text of just the condition, for llm_eval type>",
+  "description": "<one-line human-readable summary>"
+}
+
+Win condition trigger values:
+- "etb" — fires when this permanent enters the battlefield (e.g. Thassa's Oracle)
+- "upkeep_begin" — fires at the beginning of the controller's upkeep (e.g. Felidar Sovereign)
+- "draw_replacement" — replaces a draw when controller's library is empty (e.g. Laboratory Maniac)
+- "spell_resolve" — fires when the spell resolves (e.g. Approach of the Second Sun)
+- "state_based" — checked continuously as a state-based action
+
+Win condition condition_type values:
+- "library_empty" — win if the controller's library has 0 cards
+- "life_threshold_gte" — win if controller's life total >= threshold
+- "permanent_count_gte" — win if controller controls >= threshold permanents matching permanent_type
+- "token_name_count_gte" — win if controller controls >= threshold tokens named token_name
+- "creature_count_gte" — win if controller controls >= threshold creatures
+- "devotion_gte_library" — win if devotion to devotion_color >= controller's library size
+- "llm_eval" — condition is complex; include llm_condition_text so a later LLM call can evaluate it
+
+Win condition examples:
+- "Thassa's Oracle" Creature "When Thassa's Oracle enters the battlefield, look at the top X cards of your library, where X is your devotion to blue. Put up to one of them on top and the rest on the bottom. If X is greater than or equal to the number of cards in your library, you win the game."
+  → "win_condition": {"trigger":"etb","condition_type":"devotion_gte_library","devotion_color":"U","description":"Win if devotion to blue >= library size on ETB"}
+
+- "Laboratory Maniac" Creature "If you would draw a card while your library has no cards in it, you win the game instead."
+  → "win_condition": {"trigger":"draw_replacement","condition_type":"library_empty","description":"Win instead of drawing from an empty library"}
+
+- "Felidar Sovereign" Creature "At the beginning of your upkeep, if you have 40 or more life, you win the game."
+  → "win_condition": {"trigger":"upkeep_begin","condition_type":"life_threshold_gte","threshold":40,"description":"Win at upkeep if you have 40+ life"}
+
+- "Revel in Riches" Enchantment "At the beginning of your upkeep, if you control ten or more Treasure tokens, you win the game."
+  → "win_condition": {"trigger":"upkeep_begin","condition_type":"token_name_count_gte","token_name":"Treasure","threshold":10,"description":"Win at upkeep if you control 10+ Treasure tokens"}
+
+- "Epic Struggle" Enchantment "At the beginning of your upkeep, if you control twenty or more creatures, you win the game."
+  → "win_condition": {"trigger":"upkeep_begin","condition_type":"creature_count_gte","threshold":20,"description":"Win at upkeep if you control 20+ creatures"}
+
+- "Coalition Victory" Sorcery "You win the game if you control a land of each basic land type and a creature of each color."
+  → "win_condition": {"trigger":"spell_resolve","condition_type":"llm_eval","llm_condition_text":"you control a land of each basic land type and a creature of each color","description":"Win if you control all basic land types and creatures of all 5 colors"}
 
 ## is_equipment + grants_to_equipped
 
@@ -147,7 +200,7 @@ def build_prompt(cards: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def parse_batch(cards: list[dict], api_key: str, max_retries: int = 3) -> list[dict] | None:
+def parse_batch(cards: list[dict], api_key: str, max_retries: int = 3, max_tokens: int = 4096) -> list[dict] | None:
     """
     Call Claude Haiku with a batch of cards and return parsed effects_json list.
     Each card dict must have: name, type_line, oracle_text.
@@ -161,7 +214,7 @@ def parse_batch(cards: list[dict], api_key: str, max_retries: int = 3) -> list[d
         try:
             message = client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=4096,
+                max_tokens=max_tokens,
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": prompt}],
             )

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo, Fragment } from "react";
 import { createPortal, flushSync } from "react-dom";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { Board } from "../components/Board/Board";
 import { MulliganPhase } from "../components/MulliganPhase/MulliganPhase";
 import { StackOverlay } from "../components/StackOverlay/StackOverlay";
@@ -94,7 +94,7 @@ function ETBLandPicker({ lands, cardName, gameId, onStateChange, onSkip }: {
           }}
           onClick={async () => {
             if (!selectedId) return;
-            const r = await sendAction(gameId, { type: "etb_replacement_choice", choice: "pay", land_id: selectedId });
+            await sendAction(gameId, { type: "etb_replacement_choice", choice: "pay", land_id: selectedId });
             onStateChange(await getGameState(gameId));
           }}
         >
@@ -222,10 +222,75 @@ function FlyingCardEl({ imageUri, fromRect, toRect, onDone }: {
   );
 }
 
+// ── Demonic Consultation name modal ──────────────────────────────────────────
+
+function DCNameModal({ spellName, gameId, onStateChange }: {
+  spellName: string;
+  gameId: string;
+  onStateChange: (s: any) => void;
+}) {
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { appendLog } = useGameStore();
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await sendAction(gameId, { type: "dc_name_choice", named_card: name.trim() });
+      appendLog(r.log);
+      onStateChange(await getGameState(gameId));
+    } catch {
+      setError("Failed to submit. Try again.");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fetch-overlay" style={{ zIndex: 9990 }}>
+      <div className="fetch-modal" style={{ maxWidth: 420 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6, color: "var(--gold-light)" }}>
+          {spellName}
+        </div>
+        <div style={{ fontSize: 13, color: "var(--text)", marginBottom: 20 }}>
+          Name a card. Your library will be searched — if found, it goes to your hand and everything before it is exiled. If not found, your entire library is exiled.
+        </div>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <input
+            autoFocus
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Card name…"
+            style={{
+              background: "var(--surface)", border: "1px solid var(--border-hi)",
+              borderRadius: 8, padding: "10px 14px", color: "var(--text-h)",
+              fontSize: 14, outline: "none",
+            }}
+          />
+          {error && <div style={{ color: "var(--red)", fontSize: 13 }}>{error}</div>}
+          <button
+            type="submit"
+            className="primary"
+            disabled={!name.trim() || loading}
+            style={{ padding: "10px 0" }}
+          >
+            {loading ? "Resolving…" : "Confirm"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Game component ───────────────────────────────────────────────────────────
 
 export function Game() {
   const { gameId } = useParams<{ gameId: string }>();
+  const navigate = useNavigate();
   const { gameState, actionLog, appendLog, setGameState, setGameId, setLoading, isLoading } = useGameStore();
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -518,6 +583,22 @@ export function Game() {
         </div>
       )}
 
+      {gameState?.winner && (() => {
+        const winningPlayer = gameState.players.find(p => p.id === gameState.winner);
+        const winnerName = winningPlayer?.name ?? "A player";
+        return (
+          <div className="win-overlay">
+            <div className="win-modal">
+              <div className="win-trophy">🏆</div>
+              <h2 className="win-title">{winnerName} has won the game!</h2>
+              <button className="primary win-new-game-btn" onClick={() => navigate("/")}>
+                New Game
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="game-main">
         <div className="board-area" style={{ position: "relative" }}>
           {fetchError && (
@@ -528,7 +609,7 @@ export function Game() {
           {gameState && gameState.mulligan_phase !== "playing" ? (
             <MulliganPhase gameState={gameState} onStateChange={applyNewState} />
           ) : (
-            <>
+            <div style={gameState?.winner ? { pointerEvents: "none", userSelect: "none" } : undefined}>
               <Board onStateChange={applyNewState} aiHandsMap={aiHandsMap} />
 
               {gameState && (gameState.stack ?? []).length > 0 && holdingPriority && (
@@ -552,6 +633,13 @@ export function Game() {
               {gameState && (gameState.pending_choices ?? []).length > 0 && (gameState.stack ?? []).length === 0 && (
                 <EffectQueueOverlay
                   gameState={gameState}
+                  onStateChange={applyNewState}
+                />
+              )}
+              {gameState?.pending_dc_name && (
+                <DCNameModal
+                  spellName={gameState.pending_dc_name.spell_name}
+                  gameId={gameId!}
                   onStateChange={applyNewState}
                 />
               )}
@@ -614,7 +702,7 @@ export function Game() {
                   </div>
                 );
               })()}
-            </>
+            </div>
           )}
         </div>
 

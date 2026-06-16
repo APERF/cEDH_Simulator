@@ -939,6 +939,22 @@ async def player_action(game_id: str, action: dict):
         gs.log(msg)
         return {"status": "ok", "log": [msg]}
 
+    if action_type == "dc_name_choice":
+        log_before = len(gs.game_log)
+        if not gs.pending_dc_name:
+            raise HTTPException(status_code=400, detail="No pending Demonic Consultation name choice")
+        pending = gs.pending_dc_name
+        gs.pending_dc_name = None
+
+        named_card = (action.get("named_card") or "").strip()
+        if not named_card:
+            raise HTTPException(status_code=400, detail="Must provide a card name")
+
+        from app.engine.effects.registry import _exile_library_for_name
+        _exile_library_for_name(gs, pending["player_id"], named_card, pending["spell_name"])
+        gs.check_state_based_actions()
+        return {"status": "ok", "log": gs.game_log[log_before:]}
+
     if action_type == "etb_replacement_choice":
         log_before = len(gs.game_log)
         if not gs.pending_etb_replacement:
@@ -1102,8 +1118,8 @@ async def player_action(game_id: str, action: dict):
             artifact.tapped_for = color
             msg = f"{human.name} taps {artifact.name} for {count}x{{{color}}}"
 
-        # Sacrifice after tapping (LED and Jeweled Lotus are one-shot)
-        if artifact.name in ("Lion's Eye Diamond", "Jeweled Lotus"):
+        # Sacrifice after tapping (one-shot artifacts)
+        if artifact.name in ("Lion's Eye Diamond", "Jeweled Lotus", "Lotus Petal"):
             human.battlefield.remove(artifact.id)
             artifact.zone = Zone.GRAVEYARD
             human.graveyard.add(artifact)

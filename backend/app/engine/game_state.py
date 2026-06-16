@@ -5,7 +5,11 @@ from app.engine.card import Card
 from app.engine.player import Player
 from app.engine.stack import Stack
 from app.models.schemas import Phase, Step, Zone
-from app.engine.win_conditions import check_win_conditions
+from app.engine.win_conditions import (
+    check_win_conditions,
+    check_upkeep_win_conditions,
+    check_draw_replacement_win,
+)
 from app.engine.effects import (
     GameEvent, PendingEffect,
     EVENT_ETB, EVENT_LTB, EVENT_DRAW, EVENT_DAMAGE_DEALT,
@@ -64,6 +68,7 @@ class GameState:
         self.pending_choices: list[PendingEffect] = []   # optional effects awaiting human decision
         self.static_flags: dict[str, bool] = {}          # refreshed each step by apply_static_effects
         self.pending_etb_replacement: dict | None = None  # ETB replacement awaiting human choice
+        self.pending_dc_name: dict | None = None          # Demonic Consultation name choice awaiting human
 
     @property
     def active_player(self) -> Player:
@@ -118,6 +123,10 @@ class GameState:
             self.flush_effect_queue()
 
         elif self.step == Step.UPKEEP:
+            upkeep_winner = check_upkeep_win_conditions(self, player.id)
+            if upkeep_winner:
+                self.winner = upkeep_winner
+                return
             self.fire_event(GameEvent(
                 type=EVENT_UPKEEP_BEGIN,
                 controller_id=player.id,
@@ -125,6 +134,8 @@ class GameState:
             self.flush_effect_queue()
 
         elif self.step == Step.DRAW:
+            if len(player.library) == 0 and check_draw_replacement_win(self, player.id):
+                return
             drawn = player.draw(1)
             if drawn:
                 self.log(f"{player.name} draws a card")
@@ -438,6 +449,7 @@ class GameState:
             "pending_choices": [e.to_dict() for e in self.pending_choices],
             "effect_queue_size": len(self.effect_queue),
             "pending_etb_replacement": self.pending_etb_replacement,
+            "pending_dc_name": self.pending_dc_name,
             "mulligan_phase": self.mulligan_phase,
             "mulligan_count": self.human_mulligan_count,
             "cards_to_bottom": self.cards_to_bottom,
