@@ -218,18 +218,28 @@ def _run_action(action: dict, gs: "GameState", controller_id: str, card: "Card")
             if destination == "hand":
                 chosen.zone = Zone.HAND
                 player.hand._cards.append(chosen)
+                player.library.shuffle()
             elif destination == "top_of_library":
+                # Shuffle first (implicit in searching), then place on top
+                player.library.shuffle()
                 player.library._cards.insert(0, chosen)
                 chosen.zone = Zone.LIBRARY
             elif destination == "battlefield":
                 chosen.zone = Zone.BATTLEFIELD
                 player.battlefield.add(chosen)
-            player.library.shuffle()
+                player.library.shuffle()
             gs.log(f"{card_name}: {player.name} searches for {chosen.name} → {destination}")
 
     elif atype == "put_on_top":
         amount = action.get("amount", 1)
-        gs.log(f"{card_name}: {player.name} puts {amount} card(s) on top of library (auto)")
+        from app.models.schemas import Zone
+        sorted_hand = sorted(player.hand._cards, key=lambda c: c.cmc or 0)
+        put_back = sorted_hand[:min(amount, len(sorted_hand))]
+        for c in put_back:
+            player.hand._cards.remove(c)
+            player.library._cards.insert(0, c)
+            c.zone = Zone.LIBRARY
+        gs.log(f"{card_name}: {player.name} puts {len(put_back)} card(s) on top of library")
 
     elif atype in ("destroy", "exile", "bounce"):
         # Single-target effects need targeting UI — log for now
@@ -249,8 +259,45 @@ def _run_action(action: dict, gs: "GameState", controller_id: str, card: "Card")
                     ctrl.graveyard.add(target.card)
                 gs.log(f"{card_name}: counters {target.card.name}")
 
+    elif atype == "exile_library_until_named":
+        if player.is_human:
+            gs.pending_dc_name = {"player_id": controller_id, "spell_name": card_name}
+            gs.log(f"{card_name}: waiting for {player.name} to name a card")
+        else:
+            _exile_library_for_name(gs, controller_id, "__nonexistent__", card_name)
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _exile_library_for_name(gs: "GameState", player_id: str, named_card: str, spell_name: str) -> None:
+    """Exile top N cards then reveal one by one until named card found or library exhausted."""
+    from app.models.schemas import Zone
+    player = gs.get_player(player_id)
+    if not player:
+        return
+    named_lower = named_card.strip().lower()
+    exiled_count = 0
+    for _ in range(min(6, len(player.library._cards))):
+        c = player.library._cards.pop(0)
+        c.zone = Zone.EXILE
+        player.exile.add(c)
+        exiled_count += 1
+    found = None
+    while player.library._cards:
+        c = player.library._cards.pop(0)
+        if c.name.lower() == named_lower:
+            found = c
+            break
+        c.zone = Zone.EXILE
+        player.exile.add(c)
+        exiled_count += 1
+    if found:
+        found.zone = Zone.HAND
+        player.hand.add(found)
+        gs.log(f"{spell_name}: {player.name} named '{named_card}' — found it, {exiled_count} cards exiled")
+    else:
+        gs.log(f"{spell_name}: {player.name} named '{named_card}' — not found, entire library exiled ({exiled_count} cards)")
+
 
 def _resolve_who(who: str, gs: "GameState", controller_id: str) -> list:
     player = gs.get_player(controller_id)

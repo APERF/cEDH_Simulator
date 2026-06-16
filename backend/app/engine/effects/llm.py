@@ -140,7 +140,10 @@ Discard:   {"type": "discard", "who": "controller", "amount": 1}
 Library:   {"type": "scry", "amount": 2}
            {"type": "mill", "who": "controller", "amount": 3}
            {"type": "search_library", "filter": "any", "destination": "hand"}
+           {"type": "search_library", "filter": "any", "destination": "top_of_library"}
            {"type": "search_library", "filter": "land", "destination": "battlefield"}
+           {"type": "put_on_top", "amount": 2}
+           {"type": "exile_library_until_named", "exile_top_first": 6, "put_named_in_hand": true}
 Counter:   {"type": "counter_spell"}
 
 ## skip=true Rules
@@ -181,6 +184,24 @@ needs_choice=true if player must make a non-targeting decision (choose a color, 
 
 "Dockside Extortionist" Creature "When Dockside Extortionist enters the battlefield, create X Treasure tokens, where X is the number of artifacts and enchantments your opponents control."
 → {"name":"Dockside Extortionist","skip":false,"is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":null,"effects":[{"trigger":"etb","optional":false,"needs_target":false,"needs_choice":false,"actions":[{"type":"create_token","token_name":"Treasure","token_type":"Artifact — Token","count":3,"oracle_text":"{T}, Sacrifice this artifact: Add one mana of any color."}]}]}
+
+"Counterspell" Instant "Counter target spell."
+→ {"name":"Counterspell","skip":false,"is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":null,"effects":[{"trigger":"spell_resolve","optional":false,"needs_target":true,"needs_choice":false,"actions":[{"type":"counter_spell"}]}]}
+
+"Ponder" Sorcery "Look at the top three cards of your library, then put them back in any order. You may shuffle. Draw a card."
+→ {"name":"Ponder","skip":false,"is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":null,"effects":[{"trigger":"spell_resolve","optional":false,"needs_target":false,"needs_choice":false,"actions":[{"type":"scry","amount":3},{"type":"draw","who":"controller","amount":1}]}]}
+
+"Brainstorm" Instant "Draw three cards, then put two cards from your hand on top of your library in any order."
+→ {"name":"Brainstorm","skip":false,"is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":null,"effects":[{"trigger":"spell_resolve","optional":false,"needs_target":false,"needs_choice":false,"actions":[{"type":"draw","who":"controller","amount":3},{"type":"put_on_top","amount":2}]}]}
+
+"Vampiric Tutor" Instant "Search your library for a card and put that card on top of your library, then shuffle. You lose 2 life."
+→ {"name":"Vampiric Tutor","skip":false,"is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":null,"effects":[{"trigger":"spell_resolve","optional":false,"needs_target":false,"needs_choice":false,"actions":[{"type":"search_library","filter":"any","destination":"top_of_library"},{"type":"lose_life","who":"controller","amount":2}]}]}
+
+"Demonic Consultation" Instant "Name a card. Exile the top six cards of your library face down. Then reveal cards from the top of your library until you reveal the named card. Exile all other cards revealed this way, then put the named card into your hand."
+→ {"name":"Demonic Consultation","skip":false,"is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":null,"effects":[{"trigger":"spell_resolve","optional":false,"needs_target":false,"needs_choice":true,"actions":[{"type":"exile_library_until_named","exile_top_first":6,"put_named_in_hand":true}]}]}
+
+"Tainted Pact" Instant "Exile the top card of your library. You may put that card into your hand unless it has the same name as another card exiled this way. Repeat this process until you put a card into your hand or you exile two cards with the same name."
+→ {"name":"Tainted Pact","skip":false,"is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":null,"effects":[{"trigger":"spell_resolve","optional":false,"needs_target":false,"needs_choice":true,"actions":[{"type":"exile_library_until_named","exile_top_first":0,"put_named_in_hand":true}]}]}
 
 "Llanowar Elves" Creature "{T}: Add {G}."
 → {"name":"Llanowar Elves","skip":true,"skip_reason":"tap_mana_only","is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":null,"effects":[]}

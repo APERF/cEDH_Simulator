@@ -137,78 +137,10 @@ _simple_mana_etb("Basalt Monolith")
 # Handled entirely by the tap_artifact action in game.py — no ETB effect needed.
 
 
-# ── Library-exile spells (Oracle combo enablers) ──────────────────────────────
-
-def _exile_library_for_name(gs: "GameState", player_id: str, named_card: str, spell_name: str) -> None:
-    """
-    Core DC/Tainted Pact resolution once the named card is known.
-    Exile top 6, then reveal cards one by one:
-      - If the named card is found → put it in hand, stop.
-      - If library is exhausted → entire library was exiled (combo line).
-    """
-    from app.models.schemas import Zone
-    player = gs.get_player(player_id)
-    if not player:
-        return
-
-    named_lower = named_card.strip().lower()
-
-    # Exile top 6 first
-    exiled_count = 0
-    for _ in range(min(6, len(player.library._cards))):
-        c = player.library._cards.pop(0)
-        c.zone = Zone.EXILE
-        player.exile.add(c)
-        exiled_count += 1
-
-    # Reveal cards until named card found or library empty
-    found = None
-    while player.library._cards:
-        c = player.library._cards.pop(0)
-        if c.name.lower() == named_lower:
-            found = c
-            break
-        c.zone = Zone.EXILE
-        player.exile.add(c)
-        exiled_count += 1
-
-    if found:
-        found.zone = "hand"
-        player.hand.add(found)
-        gs.log(f"{spell_name}: {player.name} named '{named_card}' — found it, {exiled_count} cards exiled")
-    else:
-        gs.log(f"{spell_name}: {player.name} named '{named_card}' — not found, entire library exiled ({exiled_count} cards)")
-
-
-def _demonic_consultation_resolve(gs: "GameState", controller_id: str, card: "Card") -> None:
-    player = gs.get_player(controller_id)
-    if not player:
-        return
-    spell_name = card.name if card else "Demonic Consultation"
-    if player.is_human:
-        # Pause and wait for the human to name a card via the dc_name_choice action
-        gs.pending_dc_name = {"player_id": controller_id, "spell_name": spell_name}
-        gs.log(f"{spell_name}: waiting for {player.name} to name a card")
-    else:
-        # AI always names a card not in its deck to exile the whole library (Oracle combo line)
-        _exile_library_for_name(gs, controller_id, "__nonexistent__", spell_name)
-
-_spell("Demonic Consultation", _demonic_consultation_resolve)
-
-
-def _tainted_pact_resolve(gs: "GameState", controller_id: str, card: "Card") -> None:
-    player = gs.get_player(controller_id)
-    if not player:
-        return
-    spell_name = card.name if card else "Tainted Pact"
-    if player.is_human:
-        gs.pending_dc_name = {"player_id": controller_id, "spell_name": spell_name}
-        gs.log(f"{spell_name}: waiting for {player.name} to name a card")
-    else:
-        # In a singleton deck every name is unique — exile everything (combo line)
-        _exile_library_for_name(gs, controller_id, "__nonexistent__", spell_name)
-
-_spell("Tainted Pact", _tainted_pact_resolve)
+# ── Library-exile spells handled by interpreter ───────────────────────────────
+# Demonic Consultation and Tainted Pact use the exile_library_until_named action
+# in their effects_json. The interpreter (interpreter.py) handles it generically
+# via _exile_library_for_name — no per-card Python needed here.
 
 
 # ── Chrome Mox ────────────────────────────────────────────────────────────────
@@ -480,80 +412,10 @@ _reg("Jace, Wielder of Mysteries", [CardEffect(
 )])
 
 
-# ── Demonic Tutor ─────────────────────────────────────────────────────────────
-
-def _demonic_tutor_resolve(event: GameEvent, gs: "GameState", card: "Card") -> None:
-    if card is None:
-        return
-    controller = gs.get_player(card.controller_id)
-    if not controller or not controller.library._cards:
-        return
-    # AI: pick highest-CMC non-land card; human picks first (UI improvement deferred)
-    candidates = [c for c in controller.library._cards if not c.is_land]
-    if not candidates:
-        candidates = controller.library._cards
-    chosen = max(candidates, key=lambda c: c.cmc)
-    controller.library._cards.remove(chosen)
-    from app.models.schemas import Zone
-    chosen.zone = Zone.HAND
-    controller.hand._cards.append(chosen)
-    controller.library.shuffle()
-    gs.log(f"{controller.name} tutors {chosen.name} to hand (Demonic Tutor)")
-
-_reg("Demonic Tutor", [CardEffect(
-    trigger=EVENT_SPELL_CAST,
-    resolve=_demonic_tutor_resolve,
-    condition=lambda ev, gs, card: card is not None and ev.source_card_id == card.id,
-    description="Search library for any card, put into hand",
-)])
+# Demonic Tutor and Vampiric Tutor handled by interpreter via effects_json.
 
 
-# ── Vampiric Tutor ────────────────────────────────────────────────────────────
-
-def _vampiric_tutor_resolve(event: GameEvent, gs: "GameState", card: "Card") -> None:
-    if card is None:
-        return
-    controller = gs.get_player(card.controller_id)
-    if not controller or not controller.library._cards:
-        return
-    candidates = [c for c in controller.library._cards if not c.is_land]
-    if not candidates:
-        candidates = controller.library._cards
-    chosen = max(candidates, key=lambda c: c.cmc)
-    controller.library._cards.remove(chosen)
-    controller.library._cards.insert(0, chosen)  # put on top
-    controller.life_total -= 2
-    gs.log(f"{controller.name} tutors {chosen.name} to top of library (Vampiric Tutor), pays 2 life")
-
-_reg("Vampiric Tutor", [CardEffect(
-    trigger=EVENT_SPELL_CAST,
-    resolve=_vampiric_tutor_resolve,
-    condition=lambda ev, gs, card: card is not None and ev.source_card_id == card.id,
-    description="Pay 2 life, search library for any card, put on top",
-)])
-
-
-# ── Dramatic Reversal ─────────────────────────────────────────────────────────
-
-def _dramatic_reversal_resolve(event: GameEvent, gs: "GameState", card: "Card") -> None:
-    if card is None:
-        return
-    controller = gs.get_player(card.controller_id)
-    if not controller:
-        return
-    count = 0
-    for perm in controller.battlefield.permanents:
-        if not perm.is_land and perm.tapped:
-            perm.tapped = False
-            count += 1
-    gs.log(f"Dramatic Reversal: {controller.name} untaps {count} nonland permanent(s)")
-
-_reg("Dramatic Reversal", [CardEffect(
-    trigger=EVENT_SPELL_CAST,
-    resolve=_dramatic_reversal_resolve,
-    condition=lambda ev, gs, card: card is not None and ev.source_card_id == card.id,
-    description="Untap all nonland permanents you control",
-)])
+# Dramatic Reversal handled by interpreter via effects_json (untap_all nonland_permanents).
 
 
 # ── Narset, Parter of Veils (static — blocks extra draws) ────────────────────
@@ -643,22 +505,7 @@ for _dork in [
     _reg(_dork, [])
 
 
-# ── Counterspell ──────────────────────────────────────────────────────────────
-
-def _counterspell_resolve(gs: "GameState", controller_id: str, card: "Card") -> None:
-    for obj in reversed(gs.stack.objects):
-        if obj.controller_id != controller_id:
-            gs.stack.counter(obj.id)
-            from app.models.schemas import Zone
-            ctrl = gs.get_player(obj.controller_id)
-            if ctrl:
-                obj.card.zone = Zone.GRAVEYARD
-                ctrl.graveyard.add(obj.card)
-            gs.log(f"{card.name}: counters {obj.card.name}")
-            return
-    gs.log(f"{card.name}: no target to counter")
-
-_spell("Counterspell", _counterspell_resolve)
+# Counterspell handled by interpreter via effects_json (counter_spell action).
 
 
 # ── Spell Pierce ──────────────────────────────────────────────────────────────
@@ -694,49 +541,7 @@ def _spell_pierce_resolve(gs: "GameState", controller_id: str, card: "Card") -> 
 _spell("Spell Pierce", _spell_pierce_resolve)
 
 
-# ── Ponder ────────────────────────────────────────────────────────────────────
-
-def _ponder_resolve(gs: "GameState", controller_id: str, card: "Card") -> None:
-    controller = gs.get_player(controller_id)
-    if not controller:
-        return
-    lib = controller.library._cards
-    top3 = lib[:3]
-    non_lands = [c for c in top3 if not c.is_land]
-    if non_lands:
-        best = max(non_lands, key=lambda c: c.cmc)
-        top3.remove(best)
-        lib[:3] = [best] + top3
-    drawn = controller.draw(1)
-    gs.log(f"Ponder: {controller.name} peeks at top 3, draws 1")
-    if drawn:
-        from app.engine.effects import GameEvent, EVENT_DRAW
-        gs.fire_event(GameEvent(type=EVENT_DRAW, controller_id=controller_id, data={"amount": 1}))
-
-_spell("Ponder", _ponder_resolve)
-
-
-# ── Brainstorm ────────────────────────────────────────────────────────────────
-
-def _brainstorm_resolve(gs: "GameState", controller_id: str, card: "Card") -> None:
-    controller = gs.get_player(controller_id)
-    if not controller:
-        return
-    controller.draw(3)
-    gs.log(f"Brainstorm: {controller.name} draws 3")
-    hand = controller.hand._cards
-    if len(hand) >= 2:
-        to_put_back = sorted(hand, key=lambda c: (not c.is_land, c.cmc))[:2]
-        for c in to_put_back:
-            hand.remove(c)
-            controller.library._cards.insert(0, c)
-            from app.models.schemas import Zone
-            c.zone = Zone.LIBRARY
-        gs.log(f"Brainstorm: {controller.name} puts 2 cards back on top")
-    from app.engine.effects import GameEvent, EVENT_DRAW
-    gs.fire_event(GameEvent(type=EVENT_DRAW, controller_id=controller_id, data={"amount": 3}))
-
-_spell("Brainstorm", _brainstorm_resolve)
+# Ponder and Brainstorm handled by interpreter via effects_json.
 
 
 # ── Pyroblast / Red Elemental Blast ──────────────────────────────────────────

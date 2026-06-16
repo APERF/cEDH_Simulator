@@ -950,7 +950,7 @@ async def player_action(game_id: str, action: dict):
         if not named_card:
             raise HTTPException(status_code=400, detail="Must provide a card name")
 
-        from app.engine.effects.registry import _exile_library_for_name
+        from app.engine.effects.interpreter import _exile_library_for_name
         _exile_library_for_name(gs, pending["player_id"], named_card, pending["spell_name"])
         gs.check_state_based_actions()
         return {"status": "ok", "log": gs.game_log[log_before:]}
