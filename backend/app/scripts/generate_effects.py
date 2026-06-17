@@ -94,7 +94,7 @@ def main() -> None:
                 {"name": c.name, "type_line": c.type_line, "oracle_text": c.oracle_text or ""}
                 for c in batch
             ]
-            results = parse_batch(cards_data, ANTHROPIC_API_KEY)
+            results = parse_batch(cards_data, ANTHROPIC_API_KEY, max_tokens=8192)
 
             if results is None:
                 for c in batch:

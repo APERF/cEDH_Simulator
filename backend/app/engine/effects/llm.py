@@ -25,6 +25,7 @@ Each object MUST include ALL of these top-level fields:
   "grants_to_equipped": [ <ability objects granted to equipped creature, see below> ],
   "etb_replacement": <object or null — for 'If X would enter' replacement effects>,
   "win_condition": <null or win condition object — see below>,
+  "activated_abilities": [ <activated ability objects — see below> ],
   "effects": [ <triggered/spell effect objects> ]
 }
 
@@ -64,6 +65,7 @@ Win condition condition_type values:
 Win condition examples:
 - "Thassa's Oracle" Creature "When Thassa's Oracle enters the battlefield, look at the top X cards of your library, where X is your devotion to blue. Put up to one of them on top and the rest on the bottom. If X is greater than or equal to the number of cards in your library, you win the game."
   → "win_condition": {"trigger":"etb","condition_type":"devotion_gte_library","devotion_color":"U","description":"Win if devotion to blue >= library size on ETB"}
+  → "effects": [{"trigger":"etb","optional":false,"needs_target":false,"needs_choice":true,"description":"Look at top X cards where X is devotion to blue, put up to 1 on top","actions":[{"type":"look_arrange","compute_amount":"devotion:U","keep_top":1,"rest":"bottom_any_order"}]}]
 
 - "Laboratory Maniac" Creature "If you would draw a card while your library has no cards in it, you win the game instead."
   → "win_condition": {"trigger":"draw_replacement","condition_type":"library_empty","description":"Win instead of drawing from an empty library"}
@@ -120,6 +122,19 @@ Example — Mox Diamond:
 - "draw" — controller draws a card
 - "spell_cast" — any player casts a spell
 
+## compute_amount — Dynamic X Values
+
+Some cards say "where X is your devotion to [color]" or "where X is the number of [things]".
+Add "compute_amount" to the action instead of a hardcoded "amount". Supported values:
+- "devotion:U" / "devotion:W" / "devotion:B" / "devotion:R" / "devotion:G" — count that color's pips in mana costs of permanents the controller controls (excluding the source card itself)
+- "opponent_count" — number of opponents
+- "hand_count" — cards in controller's hand
+- "library_count" — cards in controller's library
+- "creatures_count" — creatures controller controls
+- "artifacts_opponents" — artifacts and enchantments opponents control (for Dockside-like effects)
+
+When compute_amount is present, omit "amount" (or set it to 0 as a fallback).
+
 ## Action Types (inside effects[].actions)
 
 Add mana:  {"type": "add_mana", "mana": {"B": 3}}
@@ -135,6 +150,7 @@ Exile:     {"type": "exile_all", "filter": "artifact"}
            {"type": "exile", "target_type": "permanent"}
 Bounce:    {"type": "bounce", "target_type": "creature"}
 Tokens:    {"type": "create_token", "token_name": "Treasure", "token_type": "Artifact — Token", "count": 1, "oracle_text": "{T}, Sacrifice this artifact: Add one mana of any color."}
+           {"type": "create_token", ..., "compute_count": "artifacts_opponents"}
 Untap:     {"type": "untap_all", "filter": "nonland_permanents"}
 Discard:   {"type": "discard", "who": "controller", "amount": 1}
 Library:   {"type": "scry", "amount": 2}
@@ -144,14 +160,47 @@ Library:   {"type": "scry", "amount": 2}
            {"type": "search_library", "filter": "land", "destination": "battlefield"}
            {"type": "put_on_top", "amount": 2}
            {"type": "exile_library_until_named", "exile_top_first": 6, "put_named_in_hand": true}
+           {"type": "look_arrange", "compute_amount": "devotion:U", "keep_top": 1, "rest": "bottom_any_order"}
+           — look at top X cards (X from compute_amount or amount), put up to keep_top on top, rest to bottom
 Counter:   {"type": "counter_spell"}
+
+## activated_abilities
+
+Capture non-mana activated abilities in the top-level "activated_abilities" array.
+Do NOT add simple "{T}: Add [mana]" here — those are handled by the mana system automatically.
+DO capture: draw a card, create tokens, destroy targets, untap permanents, gain life, etc.
+Cards with activated abilities must have skip=false even if they also have tap-mana.
+
+Activated ability object format:
+{
+  "id": "<kebab-case unique id, e.g. 'kenrith-draw' or 'selvala-reveal'>",
+  "description": "<short human-readable description>",
+  "cost": {
+    "tap": <true if {T} is part of the cost, else false>,
+    "mana": "<mana string e.g. '{2}{U}', or null>",
+    "pay_life": <integer, 0 if none>,
+    "discard": <integer cards to discard, 0 if none>,
+    "sacrifice_self": <true if this card sacrifices itself, else false>,
+    "sacrifice_type": "<creature|artifact|permanent|null — type of OTHER permanent to sacrifice>"
+  },
+  "sorcery_speed": <true only if the ability explicitly says 'activate only as a sorcery'>,
+  "needs_target": <true if ability requires choosing a target>,
+  "actions": [ <same action objects as effects[].actions> ]
+}
+
+Examples:
+- Kenrith "Pay {2}{U}: Target player draws a card."
+  → {"id":"kenrith-draw","description":"Target player draws a card","cost":{"tap":false,"mana":"{2}{U}","pay_life":0,"discard":0,"sacrifice_self":false,"sacrifice_type":null},"sorcery_speed":false,"needs_target":true,"actions":[{"type":"draw","who":"target","amount":1}]}
+- Walking Ballista "Remove a +1/+1 counter from Walking Ballista: It deals 1 damage to any target."
+  → {"id":"ballista-shoot","description":"Deal 1 damage to target","cost":{"tap":false,"mana":null,"pay_life":0,"discard":0,"sacrifice_self":false,"sacrifice_type":null},"sorcery_speed":false,"needs_target":true,"actions":[{"type":"deal_damage","to":"target","amount":1}]}
 
 ## skip=true Rules
 
 Set skip=true (and skip_reason) for:
 - Lands
-- Cards whose ONLY effect is a tap mana ability "{T}: Add ..." with NO other triggered/spell effects — mark as skip_reason="tap_mana_only" (mana is handled automatically via oracle text parsing)
-- However: equipment cards with mana grants must use is_equipment=true with grants_to_equipped, NOT skip=true
+- Cards whose ONLY effect is a tap mana ability "{T}: Add ..." with NO other triggered/spell/activated effects — mark as skip_reason="tap_mana_only" (mana is handled automatically)
+- EXCEPTION: if a card has "{T}: Add ..." AND other activated abilities, set skip=false and capture the non-mana activated abilities in activated_abilities[]
+- Equipment cards with mana grants must use is_equipment=true with grants_to_equipped, NOT skip=true
 - ETB replacement cards (Mox Diamond) must use etb_replacement field, NOT skip=true
 - Replacement effects other than ETB-entry ("if you would draw ... instead")
 - Temporary stat boosts only (+N/+N until end of turn)
@@ -183,7 +232,7 @@ needs_choice=true if player must make a non-targeting decision (choose a color, 
 → {"name":"Mox Diamond","skip":false,"is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":{"optional":true,"cost":{"type":"discard","filter":"land","count":1},"on_pay":"enter_battlefield","on_skip":"graveyard","prompt":"Discard a land to put Mox Diamond onto the battlefield?"},"effects":[]}
 
 "Dockside Extortionist" Creature "When Dockside Extortionist enters the battlefield, create X Treasure tokens, where X is the number of artifacts and enchantments your opponents control."
-→ {"name":"Dockside Extortionist","skip":false,"is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":null,"effects":[{"trigger":"etb","optional":false,"needs_target":false,"needs_choice":false,"actions":[{"type":"create_token","token_name":"Treasure","token_type":"Artifact — Token","count":3,"oracle_text":"{T}, Sacrifice this artifact: Add one mana of any color."}]}]}
+→ {"name":"Dockside Extortionist","skip":false,"is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":null,"win_condition":null,"activated_abilities":[],"effects":[{"trigger":"etb","optional":false,"needs_target":false,"needs_choice":false,"actions":[{"type":"create_token","token_name":"Treasure","token_type":"Artifact — Token","count":0,"compute_count":"artifacts_opponents","oracle_text":"{T}, Sacrifice this artifact: Add one mana of any color."}]}]}
 
 "Counterspell" Instant "Counter target spell."
 → {"name":"Counterspell","skip":false,"is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":null,"effects":[{"trigger":"spell_resolve","optional":false,"needs_target":true,"needs_choice":false,"actions":[{"type":"counter_spell"}]}]}
@@ -204,7 +253,10 @@ needs_choice=true if player must make a non-targeting decision (choose a color, 
 → {"name":"Tainted Pact","skip":false,"is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":null,"effects":[{"trigger":"spell_resolve","optional":false,"needs_target":false,"needs_choice":true,"actions":[{"type":"exile_library_until_named","exile_top_first":0,"put_named_in_hand":true}]}]}
 
 "Llanowar Elves" Creature "{T}: Add {G}."
-→ {"name":"Llanowar Elves","skip":true,"skip_reason":"tap_mana_only","is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":null,"effects":[]}
+→ {"name":"Llanowar Elves","skip":true,"skip_reason":"tap_mana_only","is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":null,"win_condition":null,"activated_abilities":[],"effects":[]}
+
+"Thassa's Oracle" Creature "When Thassa's Oracle enters the battlefield, look at the top X cards of your library, where X is your devotion to blue. Put up to one of them on top of your library and the rest on the bottom of your library in any order. If X is greater than or equal to the number of cards in your library, you win the game."
+→ {"name":"Thassa's Oracle","skip":false,"is_equipment":false,"equip_cost":null,"grants_to_equipped":[],"etb_replacement":null,"win_condition":{"trigger":"etb","condition_type":"devotion_gte_library","devotion_color":"U","description":"Win if devotion to blue >= library size on ETB"},"activated_abilities":[],"effects":[{"trigger":"etb","optional":false,"needs_target":false,"needs_choice":true,"description":"Look at top X cards where X is devotion to blue, put up to 1 on top","actions":[{"type":"look_arrange","compute_amount":"devotion:U","keep_top":1,"rest":"bottom_any_order"}]}]}
 
 Output ONLY the raw JSON array. No markdown, no explanation, no code fences."""
 

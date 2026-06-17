@@ -18,6 +18,12 @@ if TYPE_CHECKING:
 
 # ── Public entry points ───────────────────────────────────────────────────────
 
+def execute_activated_ability(card: "Card", ability_spec: dict, game_state: "GameState", controller_id: str, target_ids: list | None = None) -> None:
+    """Execute an activated ability that has resolved off the stack."""
+    for action in ability_spec.get("actions", []):
+        _run_action(action, game_state, controller_id, card)
+
+
 def execute_spell(card: "Card", game_state: "GameState", controller_id: str) -> None:
     """Execute spell_resolve effects for a card that just resolved off the stack."""
     spec = getattr(card, "effects_json", None)
@@ -186,6 +192,34 @@ def _run_action(action: dict, gs: "GameState", controller_id: str, card: "Card")
                 target.graveyard.add(discarded)
                 gs.log(f"{card_name}: {target.name} discards {discarded.name}")
 
+    elif atype == "look_arrange":
+        from app.models.schemas import Zone
+        compute_expr = action.get("compute_amount")
+        amount = _compute_amount(compute_expr, gs, controller_id, card) if compute_expr else action.get("amount", 1)
+        keep_top = action.get("keep_top", 1)
+        top_cards = list(player.library._cards)[:amount]
+        if not top_cards:
+            gs.log(f"{card_name}: {player.name} looks at top 0 cards (library empty)")
+            return
+        if player.is_human:
+            gs.pending_look_arrange = {
+                "player_id": controller_id,
+                "card_name": card_name,
+                "keep_top": keep_top,
+                "cards": [{"id": c.id, "name": c.name, "image_uri": c.image_uri} for c in top_cards],
+            }
+            gs.log(f"{card_name}: {player.name} looks at top {len(top_cards)} card(s) — awaiting choice")
+        else:
+            looked = [player.library._cards.popleft() for _ in range(len(top_cards))]
+            sorted_cards = sorted(looked, key=lambda c: c.cmc or 0, reverse=True)
+            on_top = sorted_cards[:keep_top]
+            on_bottom = sorted_cards[keep_top:]
+            for c in on_bottom:
+                player.library._cards.append(c)
+            for c in reversed(on_top):
+                player.library._cards.appendleft(c)
+            gs.log(f"{card_name}: {player.name} arranges top {len(looked)} card(s), keeps {len(on_top)} on top")
+
     elif atype == "scry":
         amount = action.get("amount", 1)
         gs.log(f"{card_name}: {player.name} scrys {amount} (auto-kept)")
@@ -329,6 +363,79 @@ def _matches_type_filter(perm, _filter: str) -> bool:
     return f in tl
 
 
+def _compute_amount(expr: str, gs: "GameState", controller_id: str, card: "Card") -> int:
+    """Resolve a dynamic compute_amount expression to an integer."""
+    if not expr:
+        return 0
+    player = gs.get_player(controller_id)
+    if not player:
+        return 0
+    source_id = getattr(card, "id", None)
+    if expr.startswith("devotion:"):
+        color = expr.split(":")[1].upper()
+        return sum(
+            (c.mana_cost or "").count(color)
+            for c in player.battlefield.permanents
+            if c.id != source_id
+        )
+    if expr == "opponent_count":
+        return len(gs.get_opponents(controller_id))
+    if expr == "hand_count":
+        return len(player.hand._cards)
+    if expr == "library_count":
+        return len(player.library._cards)
+    if expr == "creatures_count":
+        return sum(1 for c in player.battlefield.permanents if c.is_creature)
+    if expr == "artifacts_opponents":
+        return sum(
+            1 for opp in gs.get_opponents(controller_id)
+            for c in opp.battlefield.permanents
+            if c.is_artifact or c.is_enchantment
+        )
+    return 0
+
+
+def _pay_ability_cost(card: "Card", cost: dict, gs: "GameState", controller_id: str) -> bool:
+    """Pay an activated ability cost. Returns True if fully paid, False if not payable."""
+    from app.models.schemas import Zone
+    player = gs.get_player(controller_id)
+    if not player:
+        return False
+    if cost.get("tap"):
+        if card.tapped:
+            return False
+        card.tapped = True
+    mana_str = cost.get("mana")
+    if mana_str:
+        from app.engine.mana_cost import parse_cost, can_pay, pay as pay_mana
+        parsed = parse_cost(mana_str)
+        if not can_pay(player.mana_pool, parsed):
+            return False
+        pay_mana(player.mana_pool, parsed)
+    pay_life = cost.get("pay_life", 0)
+    if pay_life:
+        if player.life_total <= pay_life:
+            return False
+        player.life_total -= pay_life
+    discard_count = cost.get("discard", 0)
+    if discard_count:
+        if len(player.hand._cards) < discard_count:
+            return False
+        for _ in range(discard_count):
+            c = player.hand._cards.pop()
+            c.zone = Zone.GRAVEYARD
+            player.graveyard.add(c)
+    if cost.get("sacrifice_self"):
+        if card.zone != Zone.BATTLEFIELD:
+            return False
+        ctrl = gs.get_player(card.controller_id)
+        if ctrl:
+            ctrl.battlefield.remove(card.id)
+            card.zone = Zone.GRAVEYARD
+            ctrl.graveyard.add(card)
+    return True
+
+
 def _create_tokens(gs: "GameState", controller_id: str, action: dict, card_name: str) -> None:
     import uuid
     from app.engine.card import Card
@@ -336,7 +443,8 @@ def _create_tokens(gs: "GameState", controller_id: str, action: dict, card_name:
     player = gs.get_player(controller_id)
     if not player:
         return
-    count = action.get("count", 1)
+    compute_expr = action.get("compute_count")
+    count = _compute_amount(compute_expr, gs, controller_id, None) if compute_expr else action.get("count", 1)
     token_name = action.get("token_name", "Token")
     power = action.get("power", "1")
     toughness = action.get("toughness", "1")

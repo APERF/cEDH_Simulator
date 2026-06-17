@@ -70,6 +70,7 @@ class GameState:
         self.pending_etb_replacement: dict | None = None  # ETB replacement awaiting human choice
         self.pending_dc_name: dict | None = None          # Demonic Consultation name choice awaiting human
         self.pending_imprint_choice: dict | None = None   # Chrome Mox imprint card choice awaiting human
+        self.pending_look_arrange: dict | None = None     # look_arrange awaiting human top-card choice
 
     @property
     def active_player(self) -> Player:
@@ -452,6 +453,7 @@ class GameState:
             "pending_etb_replacement": self.pending_etb_replacement,
             "pending_dc_name": self.pending_dc_name,
             "pending_imprint_choice": self.pending_imprint_choice,
+            "pending_look_arrange": self.pending_look_arrange,
             "mulligan_phase": self.mulligan_phase,
             "mulligan_count": self.human_mulligan_count,
             "cards_to_bottom": self.cards_to_bottom,

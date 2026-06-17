@@ -1234,3 +1234,118 @@ async def ai_step(game_id: str):
         or bool(gs.combat_awaiting_human_action)
     )
     return {"status": "ok", "log": new_log, "is_human_turn": is_human_turn}
+
+
+@router.post("/{game_id}/activate-ability", response_model=dict)
+async def activate_ability(game_id: str, body: dict):
+    """
+    Activate an ability on a permanent the human player controls.
+    Body: { card_id, ability_id, target_ids?: [] }
+    """
+    if game_id not in _sessions:
+        raise HTTPException(status_code=404, detail="Game not found")
+    gs = _sessions[game_id]
+    human = next((p for p in gs.players if p.is_human), None)
+    if not human:
+        raise HTTPException(status_code=400, detail="No human player in this game")
+
+    card_id = body.get("card_id")
+    ability_id = body.get("ability_id")
+    target_ids: list[str] = body.get("target_ids") or []
+
+    if not card_id or not ability_id:
+        raise HTTPException(status_code=400, detail="card_id and ability_id are required")
+
+    card = human.battlefield.get(card_id)
+    if not card:
+        raise HTTPException(status_code=400, detail="Card not found on your battlefield")
+    if card.controller_id != human.id:
+        raise HTTPException(status_code=400, detail="You do not control that card")
+
+    spec = getattr(card, "effects_json", None) or {}
+    abilities = spec.get("activated_abilities") or []
+    ability = next((a for a in abilities if a.get("id") == ability_id), None)
+    if not ability:
+        raise HTTPException(status_code=400, detail=f"Ability '{ability_id}' not found on {card.name}")
+
+    cost = ability.get("cost", {})
+    if ability.get("sorcery_speed") and gs.step not in (
+        "PRECOMBAT_MAIN", "POSTCOMBAT_MAIN"
+    ):
+        raise HTTPException(status_code=400, detail="This ability can only be activated during your main phase")
+
+    from app.engine.effects.interpreter import _pay_ability_cost, execute_activated_ability
+    if not _pay_ability_cost(card, cost, gs, human.id):
+        raise HTTPException(status_code=400, detail="Cannot pay the activation cost")
+
+    ability_snap = dict(ability)
+    target_ids_snap = list(target_ids)
+
+    def resolve_fn(game_state):
+        execute_activated_ability(card, ability_snap, game_state, human.id, target_ids_snap)
+
+    stack_obj = StackObject(
+        id=str(uuid_lib.uuid4()),
+        card=card,
+        controller_id=human.id,
+        targets=target_ids_snap,
+        resolve_fn=resolve_fn,
+        is_ability=True,
+        ability_description=ability.get("description", "activated ability"),
+    )
+    gs.stack.push(stack_obj)
+    gs.log(f"{human.name} activates {card.name}: {ability.get('description', '')}")
+    return gs.to_dict()
+
+
+@router.post("/{game_id}/resolve-look-arrange", response_model=dict)
+async def resolve_look_arrange(game_id: str, body: dict):
+    """
+    Resolve a pending look_arrange choice for the human player.
+    Body: { keep_card_id?: "<card id to put on top, or null/omitted to put none on top>" }
+    The remaining cards from the revealed set go to the bottom of the library in their original order.
+    """
+    if game_id not in _sessions:
+        raise HTTPException(status_code=404, detail="Game not found")
+    gs = _sessions[game_id]
+
+    pending = gs.pending_look_arrange
+    if not pending:
+        raise HTTPException(status_code=400, detail="No pending look-arrange choice")
+
+    human = next((p for p in gs.players if p.is_human), None)
+    if not human or pending.get("player_id") != human.id:
+        raise HTTPException(status_code=400, detail="This choice does not belong to the human player")
+
+    keep_card_id: str | None = body.get("keep_card_id")
+    revealed_ids: list[str] = [c["id"] for c in pending.get("cards", [])]
+    keep_top = pending.get("keep_top", 1)
+    count = len(revealed_ids)
+
+    from app.models.schemas import Zone
+    # Pull the top `count` cards off the library (they were only peeked, not removed)
+    looked = [human.library._cards.popleft() for _ in range(min(count, len(human.library._cards)))]
+
+    # Build reordered list: chosen card(s) on top, rest to bottom
+    on_top = []
+    on_bottom = []
+    if keep_card_id:
+        for c in looked:
+            if c.id == keep_card_id and len(on_top) < keep_top:
+                on_top.append(c)
+            else:
+                on_bottom.append(c)
+    else:
+        on_bottom = looked
+
+    for c in on_bottom:
+        human.library._cards.append(c)
+    for c in reversed(on_top):
+        human.library._cards.appendleft(c)
+
+    card_name = pending.get("card_name", "Unknown")
+    kept_name = on_top[0].name if on_top else "nothing"
+    gs.log(f"{card_name}: {human.name} keeps {kept_name} on top, {len(on_bottom)} card(s) to bottom")
+    gs.pending_look_arrange = None
+
+    return gs.to_dict()
