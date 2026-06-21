@@ -94,7 +94,7 @@ export function Home() {
   const remaining = 3 - selectedOpponents.length;
 
   return (
-    <>
+    <div className="home-layout">
     <header className="app-header">
       <Link to="/" className="app-logo">cEDH Simulator</Link>
       <nav>
@@ -198,6 +198,6 @@ export function Home() {
         </button>
       </div>
     </div>
-    </>
+    </div>
   );
 }

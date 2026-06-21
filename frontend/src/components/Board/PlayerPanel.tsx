@@ -298,35 +298,37 @@ export function PlayerPanel({
             <div className="cz-empty">—</div>
           ) : (
             <div className="pp-cz-commanders">
-              {commandZoneCommanders.map((cmd) => (
-                <div key={cmd.id} className="cz-commander">
-                  {cmd.image_uri ? (
-                    <img
-                      src={cmd.image_uri}
-                      alt={cmd.name}
-                      className="cz-card-img"
-                      onMouseEnter={(e) =>
-                        setHovered({ card: cmd, rect: e.currentTarget.getBoundingClientRect() })
-                      }
-                      onMouseLeave={() => setHovered(null)}
-                    />
-                  ) : (
-                    <div className="cz-card-placeholder">{cmd.name}</div>
-                  )}
-                  {cmd.commander_tax > 0 && (
-                    <div className="cz-tax">+{cmd.commander_tax}</div>
-                  )}
-                  {player.is_human && canAfford(cmd.mana_cost, player.mana_pool, cmd.commander_tax) && (
-                    <button
-                      className="cz-cast-btn"
-                      onClick={() => onCastCommander(cmd.id)}
-                      title={`Cast ${cmd.name}${cmd.commander_tax > 0 ? ` (+${cmd.commander_tax} tax)` : ""}`}
-                    >
-                      Cast
-                    </button>
-                  )}
-                </div>
-              ))}
+              {commandZoneCommanders.map((cmd) => {
+                const canCast = player.is_human && canAfford(cmd.mana_cost, player.mana_pool, cmd.commander_tax);
+                return (
+                  <div key={cmd.id} className="cz-commander">
+                    {cmd.image_uri ? (
+                      <img
+                        src={cmd.image_uri}
+                        alt={cmd.name}
+                        className={`cz-card-img${canCast ? " castable" : ""}`}
+                        style={canCast ? { cursor: "pointer" } : undefined}
+                        onClick={() => { if (canCast) onCastCommander(cmd.id); }}
+                        onMouseEnter={(e) =>
+                          setHovered({ card: cmd, rect: e.currentTarget.getBoundingClientRect() })
+                        }
+                        onMouseLeave={() => setHovered(null)}
+                      />
+                    ) : (
+                      <div
+                        className={`cz-card-placeholder${canCast ? " castable" : ""}`}
+                        style={canCast ? { cursor: "pointer" } : undefined}
+                        onClick={() => { if (canCast) onCastCommander(cmd.id); }}
+                      >
+                        {cmd.name}
+                      </div>
+                    )}
+                    {cmd.commander_tax > 0 && (
+                      <div className="cz-tax">+{cmd.commander_tax}</div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

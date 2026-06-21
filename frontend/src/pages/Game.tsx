@@ -661,7 +661,7 @@ export function Game() {
           {gameState && gameState.mulligan_phase !== "playing" ? (
             <MulliganPhase gameState={gameState} onStateChange={applyNewState} />
           ) : (
-            <div style={gameState?.winner ? { pointerEvents: "none", userSelect: "none" } : undefined}>
+            <div className="board-content" style={gameState?.winner ? { pointerEvents: "none", userSelect: "none" } : undefined}>
               <Board onStateChange={applyNewState} aiHandsMap={aiHandsMap} />
 
               {gameState && (gameState.stack ?? []).length > 0 && holdingPriority && (
