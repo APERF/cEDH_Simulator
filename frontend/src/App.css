@@ -679,7 +679,7 @@
   transition: border-color 0.2s, box-shadow 0.2s;
   min-height: 0;
   overflow: hidden;
-  container-type: inline-size;
+  container-type: size;
 }
 
 .player-panel.active {
@@ -820,6 +820,7 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  padding-top: 3px;
 }
 
 .cz-commander {
@@ -914,7 +915,7 @@
   border-radius: 6px;
   padding: 6px;
   flex: 1;
-  min-height: 0;
+  min-height: 20cqb;
   overflow: hidden;
 }
 
@@ -972,6 +973,7 @@
   overflow: hidden;
 }
 
+
 .bf-count-badge {
   font-size: 11px;
   color: var(--text-dim);
@@ -999,17 +1001,23 @@
 }
 
 .bf-land-card {
-  width: clamp(32px, 14cqi, 80px);
+  width: auto;
   border-radius: 3px;
-  overflow: hidden;
+  overflow: visible;
   transition: transform 0.15s ease;
   flex-shrink: 0;
 }
 
 .bf-land-card img {
-  width: 100%;
+  height: 16cqb;
+  width: auto;
   display: block;
   border-radius: 3px;
+}
+
+.bf-lower-row .bf-land-card img {
+  height: 16cqb;
+  width: auto;
 }
 
 .bf-land-card.tapped {
@@ -1298,12 +1306,13 @@
   flex-wrap: nowrap;
   gap: 5px;
   overflow-x: auto;
+  padding-top: 3px;
   padding-bottom: 4px;
 }
 
 .hand-card-img {
   display: block;
-  height: clamp(60px, 18cqi, 130px);
+  height: 18cqb;
   width: auto;
   border-radius: 5px;
   flex-shrink: 0;
@@ -2451,6 +2460,8 @@
 .bf-fs-cards .bf-land-card img {
   width: 140px;
   height: auto;
+  max-height: none;
+  object-fit: unset;
 }
 
 .bf-fs-cards .bf-land-card.tapped {

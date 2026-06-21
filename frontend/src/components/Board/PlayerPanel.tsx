@@ -299,7 +299,7 @@ export function PlayerPanel({
           ) : (
             <div className="pp-cz-commanders">
               {commandZoneCommanders.map((cmd) => {
-                const canCast = player.is_human && canAfford(cmd.mana_cost, player.mana_pool, cmd.commander_tax);
+                const canCast = player.is_human && isHumanTurn && isMainPhase && canAfford(cmd.mana_cost, player.mana_pool, cmd.commander_tax);
                 return (
                   <div key={cmd.id} className="cz-commander">
                     {cmd.image_uri ? (
