@@ -1126,19 +1126,20 @@ async def player_action(game_id: str, action: dict):
         if not artifact.mana_ability or not artifact.mana_ability.produces:
             raise HTTPException(status_code=400, detail="No mana ability")
 
-        # LED: discard hand before receiving mana
-        if artifact.name == "Lion's Eye Diamond":
+        ma = artifact.mana_ability
+
+        # Discard hand before receiving mana (Lion's Eye Diamond)
+        if ma.discard_hand_on_tap:
             discarded = list(human.hand._cards)
             for c in discarded:
                 human.hand._cards.remove(c)
                 c.zone = Zone.GRAVEYARD
                 human.graveyard.add(c)
-            gs.log(f"{human.name} discards {len(discarded)} card(s) for Lion's Eye Diamond")
+            gs.log(f"{human.name} discards {len(discarded)} card(s) for {artifact.name}")
 
         artifact.tapped = True
         artifact.tapped_for = None
 
-        ma = artifact.mana_ability
         count = ma.count or 1
 
         if ma.type == "any_color":
@@ -1165,8 +1166,8 @@ async def player_action(game_id: str, action: dict):
             artifact.tapped_for = color
             msg = f"{human.name} taps {artifact.name} for {count}x{{{color}}}"
 
-        # Sacrifice after tapping (one-shot artifacts)
-        if artifact.name in ("Lion's Eye Diamond", "Jeweled Lotus", "Lotus Petal"):
+        # Sacrifice after tapping (schema-driven: sacrifice_on_tap on ManaAbility)
+        if ma.sacrifice_on_tap:
             human.battlefield.remove(artifact.id)
             artifact.zone = Zone.GRAVEYARD
             human.graveyard.add(artifact)

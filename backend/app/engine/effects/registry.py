@@ -587,20 +587,20 @@ _spell("Jeska's Will", _jeska_will_resolve)
 
 
 # ── Lion's Eye Diamond ────────────────────────────────────────────────────────
-# Activated ability (not a tap); ETB assigns mana_ability so tap_artifact can use it.
-# Hand discard + sacrifice handled in game.py tap_artifact endpoint.
+# ETB assigns mana_ability; discard_hand_on_tap + sacrifice_on_tap drive tap_artifact logic.
 
 def _led_etb(event: GameEvent, gs: "GameState", card: "Card") -> None:
     if card is None:
         return
     from app.engine.mana_ability import ManaAbility
-    card.mana_ability = ManaAbility(type="any_color", produces=["W", "U", "B", "R", "G"], count=3)
+    card.mana_ability = ManaAbility(type="any_color", produces=["W", "U", "B", "R", "G"], count=3,
+                                    sacrifice_on_tap=True, discard_hand_on_tap=True)
 
 _reg("Lion's Eye Diamond", [CardEffect(
     trigger=EVENT_ETB,
     resolve=_led_etb,
     condition=lambda ev, gs, card: card is not None and ev.source_card_id == card.id,
-    description="LED: assign any_color mana_ability count=3",
+    description="LED: assign any_color mana_ability count=3 with sacrifice+discard-hand",
 )])
 
 
@@ -610,13 +610,14 @@ def _jeweled_lotus_etb(event: GameEvent, gs: "GameState", card: "Card") -> None:
     if card is None:
         return
     from app.engine.mana_ability import ManaAbility
-    card.mana_ability = ManaAbility(type="any_color", produces=["W", "U", "B", "R", "G"], count=3)
+    card.mana_ability = ManaAbility(type="any_color", produces=["W", "U", "B", "R", "G"], count=3,
+                                    sacrifice_on_tap=True)
 
 _reg("Jeweled Lotus", [CardEffect(
     trigger=EVENT_ETB,
     resolve=_jeweled_lotus_etb,
     condition=lambda ev, gs, card: card is not None and ev.source_card_id == card.id,
-    description="Jeweled Lotus: assign any_color x3 mana ability",
+    description="Jeweled Lotus: assign any_color x3 mana ability with sacrifice",
 )])
 
 

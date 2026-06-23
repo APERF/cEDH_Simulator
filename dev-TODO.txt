@@ -19,8 +19,8 @@ cEDH Simulator — Dev TODO
 [x] Implement combat (declare attackers/blockers, damage assignment)
 [x] make a dev tool that allows you to select opening hand
 [x] transfer db to postgres
-[ ] schema: add sacrifice_on_tap field to effects_json + LLM prompt, replace LED/Jeweled Lotus/Lotus Petal hardcoding in game.py with schema-driven logic
-[ ] schema: add condition evaluator to collect_triggers() — unlock conditional triggers (Felidar Sovereign, Aetherflux Reservoir, Approach of the Second Sun second-cast check)
+[x] schema: add sacrifice_on_tap field to effects_json + LLM prompt, replace LED/Jeweled Lotus/Lotus Petal hardcoding in game.py with schema-driven logic
+[x] schema: add condition evaluator to collect_triggers() — unlock conditional triggers (Felidar Sovereign, Aetherflux Reservoir, Approach of the Second Sun second-cast check)
 [ ] schema: add static_abilities array to effects_json + schema-driven apply_static_effects() — unlock Rhystic Study tax, Smothering Tithe, Esper Sentinel, Grand Arbiter cost reduction
 [ ] schema: add combat_damage_trigger to effects_json — unlock Edric, Tymna, Kraum, Najeela, any "whenever deals combat damage" card
 [ ] schema: add draw replacement_effects to effects_json — move Lab Man / Jace win condition from hardcode to schema; support Hullbreacher-style draw redirects
@@ -39,5 +39,5 @@ cEDH Simulator — Dev TODO
 [ ] implement Turn 0 logic
 [ ] check why AI lands come into play tapped
 [ ] test AI to make sure they play after turn 1
-[ ] fix UI hover sticking on Stack UI
+[x] fix UI hover sticking on Stack UI
 [ ] add AI Mana Pools and reimagine Mana Pool UI

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { Player, HandCard, CommanderCard, LandCard, BattlefieldCard, GraveyardCard, ManaPool, Step } from "../../types/game";
 import { canAfford } from "../../utils/mana";
@@ -28,6 +28,7 @@ interface Props {
   onToggleBlocker?: (cardId: string) => void;
   onAssignBlockTarget?: (attackerId: string) => void;
   onUnassignBlock?: (blockerId: string) => void;
+  hoverEnabled?: boolean;
 }
 
 const MANA_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
@@ -189,8 +190,13 @@ export function PlayerPanel({
   onCastCommander, onPlayCard, onTapLand, onTapArtifact, onEquip, aiHandCards,
   combatMode, selectedAttackers, pendingAttacker, pendingBlocks, pendingBlocker,
   humanPlayerId, allPlayers, onToggleAttacker, onSelectAttackTarget, onToggleBlocker, onAssignBlockTarget, onUnassignBlock,
+  hoverEnabled = true,
 }: Props) {
   const [hovered, setHovered] = useState<{ card: HandCard | CommanderCard | LandCard | BattlefieldCard; rect: DOMRect } | null>(null);
+
+  useEffect(() => {
+    if (!hoverEnabled) setHovered(null);
+  }, [hoverEnabled]);
   const [colorPicker, setColorPicker] = useState<{ produces: string[]; anchor: DOMRect; onSelect: (color: string) => void } | null>(null);
   const [shockPrompt, setShockPrompt] = useState<{ cardId: string; name: string } | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -676,7 +682,7 @@ export function PlayerPanel({
         </div>
       )}
 
-      {hovered && hovered.card.image_uri && (
+      {hovered && hovered.card.image_uri && hoverEnabled && (
         <CardPreviewPortal card={hovered.card} anchor={hovered.rect} />
       )}
 

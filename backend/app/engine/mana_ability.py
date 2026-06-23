@@ -15,7 +15,7 @@ _BASIC_TYPE_TO_COLOR: dict[str, str] = {
 }
 
 _ADD_MANA_RE = re.compile(r"\{T\}\s*:\s*Add\s+([^.]+)", re.IGNORECASE)
-_ARTIFACT_MANA_RE = re.compile(r"\{T\}[^:]*:\s*Add\s+([^.]+)", re.IGNORECASE)
+_ARTIFACT_MANA_RE = re.compile(r"\{T\}([^:]*)\s*:\s*Add\s+([^.]+)", re.IGNORECASE)
 _COLOR_SYMBOL_RE = re.compile(r"\{([WUBRG])\}")
 _COLORLESS_SYMBOL_RE = re.compile(r"\{C\}")
 _ANY_COLOR_RE = re.compile(r"one mana of any color", re.IGNORECASE)
@@ -53,6 +53,8 @@ class ManaAbility:
     count: int = 1            # mana added per activation (e.g. 2 for Sol Ring, 3 for Grim Monolith)
     etbt: bool = False        # always enters tapped (no player choice bypasses it)
     condition: Optional[str] = None  # "pay_life:2" (shock) | "check" (conditional etbt) | None
+    sacrifice_on_tap: bool = False   # card sacrifices itself after tapping (Lotus Petal, Jeweled Lotus)
+    discard_hand_on_tap: bool = False  # controller discards hand before receiving mana (Lion's Eye Diamond)
 
 
 def classify_land(type_line: str, oracle_text: str) -> ManaAbility:
@@ -123,19 +125,26 @@ def classify_artifact_mana(oracle_text: str) -> "ManaAbility | None":
     add_match = _ARTIFACT_MANA_RE.search(oracle)
     if not add_match:
         return None
-    add_text = add_match.group(1)
+    cost_suffix = add_match.group(1)  # e.g. ", Sacrifice Lotus Petal" or ", Discard your hand"
+    add_text = add_match.group(2)
+
+    sacrifice_on_tap = bool(re.search(r"\bsacrifice\b", cost_suffix, re.IGNORECASE))
+    discard_hand_on_tap = bool(re.search(r"\bdiscard your hand\b", cost_suffix, re.IGNORECASE))
 
     if _ANY_COLOR_RE.search(add_text):
-        return ManaAbility(type="any_color", produces=["W", "U", "B", "R", "G"], count=1)
+        return ManaAbility(type="any_color", produces=["W", "U", "B", "R", "G"], count=1,
+                           sacrifice_on_tap=sacrifice_on_tap, discard_hand_on_tap=discard_hand_on_tap)
 
     colors = list(dict.fromkeys(_COLOR_SYMBOL_RE.findall(add_text)))
     if colors:
         mtype = "basic" if len(colors) == 1 else ("dual" if len(colors) == 2 else "tri")
-        return ManaAbility(type=mtype, produces=colors, count=1)
+        return ManaAbility(type=mtype, produces=colors, count=1,
+                           sacrifice_on_tap=sacrifice_on_tap, discard_hand_on_tap=discard_hand_on_tap)
 
     colorless = _COLORLESS_SYMBOL_RE.findall(add_text)
     if colorless:
-        return ManaAbility(type="colorless", produces=["C"], count=len(colorless))
+        return ManaAbility(type="colorless", produces=["C"], count=len(colorless),
+                           sacrifice_on_tap=sacrifice_on_tap, discard_hand_on_tap=discard_hand_on_tap)
 
     return None
 

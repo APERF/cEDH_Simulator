@@ -723,7 +723,11 @@ export function Game() {
             <MulliganPhase gameState={gameState} onStateChange={applyNewState} />
           ) : (
             <div className="board-content" style={gameState?.winner ? { pointerEvents: "none", userSelect: "none" } : undefined}>
-              <Board onStateChange={applyNewState} aiHandsMap={aiHandsMap} />
+              <Board
+                onStateChange={applyNewState}
+                aiHandsMap={aiHandsMap}
+                hoverEnabled={!gameState?.winner && (gameState?.stack ?? []).length === 0}
+              />
 
               {gameState && (gameState.stack ?? []).length > 0 && holdingPriority && (
                 <div className="hold-priority-banner">

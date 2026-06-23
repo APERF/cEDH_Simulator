@@ -73,6 +73,10 @@ class GameState:
         self.pending_look_arrange: dict | None = None     # look_arrange awaiting human top-card choice
         self.pending_target_choice: dict | None = None   # targeting awaiting human choice
 
+        # Per-turn / per-game spell tracking (used by condition evaluator)
+        self.spells_cast_this_turn: dict[str, int] = {p.id: 0 for p in players}
+        self.cards_cast_this_game: dict[str, list[str]] = {p.id: [] for p in players}
+
     @property
     def active_player(self) -> Player:
         return self.players[self.turn_order_index % len(self.players)]
@@ -116,6 +120,7 @@ class GameState:
             player.mana_pool.empty()
             for p in self.players:
                 p.battlefield.untap_all(player.id)
+                self.spells_cast_this_turn[p.id] = 0
             count = len(player.battlefield)
             if count:
                 self.log(f"{player.name} untaps {count} permanent(s)")
@@ -416,6 +421,12 @@ class GameState:
         from app.engine.effects.resolver import collect_triggers
         from app.engine.effects import _find_card
         from app.engine.stack import StackObject
+
+        if event.type == EVENT_SPELL_CAST and event.controller_id:
+            pid = event.controller_id
+            self.spells_cast_this_turn[pid] = self.spells_cast_this_turn.get(pid, 0) + 1
+            if event.source_name:
+                self.cards_cast_this_game.setdefault(pid, []).append(event.source_name)
 
         new_effects = collect_triggers(event, self)
         if not new_effects:

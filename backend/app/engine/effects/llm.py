@@ -60,6 +60,7 @@ Win condition condition_type values:
 - "token_name_count_gte" — win if controller controls >= threshold tokens named token_name
 - "creature_count_gte" — win if controller controls >= threshold creatures
 - "devotion_gte_library" — win if devotion to devotion_color >= controller's library size
+- "card_cast_before_this_game" — win if the controller has previously cast this same card (Approach second-cast)
 - "llm_eval" — condition is complex; include llm_condition_text so a later LLM call can evaluate it
 
 Win condition examples:
@@ -81,6 +82,10 @@ Win condition examples:
 
 - "Coalition Victory" Sorcery "You win the game if you control a land of each basic land type and a creature of each color."
   → "win_condition": {"trigger":"spell_resolve","condition_type":"llm_eval","llm_condition_text":"you control a land of each basic land type and a creature of each color","description":"Win if you control all basic land types and creatures of all 5 colors"}
+
+- "Approach of the Second Sun" Sorcery "If Approach of the Second Sun was cast from your hand and you've previously cast it this game, you win the game. Otherwise, put Approach of the Second Sun into its owner's library seventh from the top and you gain 7 life."
+  → "win_condition": {"trigger":"spell_resolve","condition_type":"card_cast_before_this_game","description":"Win if you've previously cast Approach of the Second Sun"}
+  → "effects": [{"trigger":"spell_resolve","optional":false,"needs_target":false,"needs_choice":false,"description":"Put Approach 7th from top and gain 7 life (first cast)","actions":[{"type":"gain_life","who":"controller","amount":7},{"type":"put_on_top","amount":7}]}]
 
 ## is_equipment + grants_to_equipped
 
@@ -135,8 +140,30 @@ Add "compute_amount" to the action instead of a hardcoded "amount". Supported va
 - "library_count" — cards in controller's library
 - "creatures_count" — creatures controller controls
 - "artifacts_opponents" — artifacts and enchantments opponents control (for Dockside-like effects)
+- "spells_cast_this_turn" — number of spells the controller has cast this turn (Aetherflux Reservoir)
 
 When compute_amount is present, omit "amount" (or set it to 0 as a fallback).
+
+## condition — Conditional Triggers
+
+Some triggered abilities only fire when a game-state condition is met ("if you have 40 or more life").
+Add an optional "condition" object to an effects[] entry to gate when the trigger fires.
+If the condition is false at trigger collection time the trigger is silently skipped.
+
+Supported condition types:
+- {"type": "controller_life_gte", "threshold": 40}   — controller has >= N life at trigger time
+- {"type": "spells_cast_this_turn_gte", "threshold": 3} — controller has cast >= N spells this turn
+- {"type": "card_cast_before_this_game"}              — controller previously cast this same card
+
+Examples:
+- Aetherflux Reservoir "Whenever you cast a spell, you gain 1 life for each spell you've cast this turn."
+  → {"trigger":"spell_cast","optional":false,"needs_target":false,"needs_choice":false,
+     "description":"Gain 1 life per spell cast this turn",
+     "actions":[{"type":"gain_life","who":"controller","compute_amount":"spells_cast_this_turn"}]}
+  (No condition needed — the trigger fires on every spell cast and gain=0 is harmless on turn 1)
+
+- Approach of the Second Sun (second cast wins):
+  Use win_condition with condition_type "card_cast_before_this_game" (see win_condition section)
 
 ## Action Types (inside effects[].actions)
 
@@ -209,7 +236,7 @@ Examples:
 
 Set skip=true (and skip_reason) for:
 - Lands
-- Cards whose ONLY effect is a tap mana ability "{T}: Add ..." with NO other triggered/spell/activated effects — mark as skip_reason="tap_mana_only" (mana is handled automatically)
+- Cards whose ONLY effect is a tap mana ability "{T}: Add ..." (including "{T}, Sacrifice [card]: Add ..." one-shot variants like Lotus Petal) with NO other triggered/spell/activated effects — mark as skip_reason="tap_mana_only" (mana system auto-detects sacrifice_on_tap and discard_hand_on_tap from oracle text)
 - EXCEPTION: if a card has "{T}: Add ..." AND other activated abilities, set skip=false and capture the non-mana activated abilities in activated_abilities[]
 - Equipment cards with mana grants must use is_equipment=true with grants_to_equipped, NOT skip=true
 - ETB replacement cards (Mox Diamond) must use etb_replacement field, NOT skip=true

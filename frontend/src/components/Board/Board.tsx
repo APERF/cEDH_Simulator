@@ -8,9 +8,10 @@ import type { FetchOption, GameState, HandCard } from "../../types/game";
 interface Props {
   onStateChange: (gs: GameState) => void;
   aiHandsMap?: Record<string, HandCard[]>;
+  hoverEnabled?: boolean;
 }
 
-export function Board({ onStateChange, aiHandsMap }: Props) {
+export function Board({ onStateChange, aiHandsMap, hoverEnabled = true }: Props) {
   const { gameState, gameId, setLoading, appendLog } = useGameStore();
   const [fetchModal, setFetchModal] = useState<FetchOption[] | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -340,6 +341,7 @@ export function Board({ onStateChange, aiHandsMap }: Props) {
               onEquip={handleEquip}
               aiHandCards={aiHandsMap?.[p.id]}
               allPlayers={gameState.players}
+              hoverEnabled={hoverEnabled}
               // combat
               combatMode={
                 isSelectingAttackers ? "select_attackers"

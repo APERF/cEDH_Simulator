@@ -46,6 +46,39 @@ _TRIGGER_MAP: dict[str, str] = {
 }
 
 
+def evaluate_effect_condition(condition: dict, event: "GameEvent", gs: "GameState", card: "Card") -> bool:
+    """
+    Evaluate a condition dict from effects_json against current game state.
+    Used by json_to_card_effects() to gate conditional triggers.
+
+    Supported condition types:
+      controller_life_gte        — controller has >= threshold life
+      spells_cast_this_turn_gte  — controller has cast >= threshold spells this turn
+      card_cast_before_this_game — controller has previously cast this card name (for Approach second-cast)
+    """
+    if not condition:
+        return True
+    ctype = condition.get("type")
+    ctrl_id = getattr(card, "controller_id", None) if card else (event.controller_id if event else None)
+    ctrl = gs.get_player(ctrl_id) if ctrl_id else None
+    if not ctrl:
+        return True
+
+    if ctype == "controller_life_gte":
+        return ctrl.life_total >= condition.get("threshold", 0)
+
+    if ctype == "spells_cast_this_turn_gte":
+        count = gs.spells_cast_this_turn.get(ctrl.id, 0)
+        return count >= condition.get("threshold", 1)
+
+    if ctype == "card_cast_before_this_game":
+        name = condition.get("card_name") or (getattr(card, "name", None) if card else None)
+        history = gs.cards_cast_this_game.get(ctrl.id, [])
+        return history.count(name) >= 2 if name else False
+
+    return True  # unknown condition type — don't block the trigger
+
+
 def json_to_card_effects(effects_json: dict) -> list:
     """
     Convert an effects_json dict into CardEffect objects for the trigger system.
@@ -68,9 +101,18 @@ def json_to_card_effects(effects_json: dict) -> list:
                 _run_effect(s, gs, card.controller_id, card)
             return resolve
 
+        def _make_condition(s: dict):
+            cond = s.get("condition")
+            if not cond:
+                return None
+            def _condition(event, gs, card):
+                return evaluate_effect_condition(cond, event, gs, card)
+            return _condition
+
         results.append(CardEffect(
             trigger=trigger,
             resolve=_make_resolve(spec),
+            condition=_make_condition(spec),
             optional=effect_spec.get("optional", False),
             needs_choice=effect_spec.get("needs_choice", False),
             description=effect_spec.get("description", "Oracle text effect"),
@@ -116,6 +158,9 @@ def _run_action(action: dict, gs: "GameState", controller_id: str, card: "Card")
 
     elif atype == "gain_life":
         amount = action.get("amount", 0)
+        compute = action.get("compute_amount")
+        if compute == "spells_cast_this_turn":
+            amount = gs.spells_cast_this_turn.get(controller_id, 0)
         who = action.get("who", "controller")
         for target in _resolve_who(who, gs, controller_id):
             target.life_total += amount

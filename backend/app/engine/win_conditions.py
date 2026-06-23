@@ -169,6 +169,13 @@ def _evaluate_win_condition(wc: dict, card: Card, player: Player, game_state: Ga
         )
         return devotion >= len(player.library)
 
+    elif condition_type == "card_cast_before_this_game":
+        # True if the controller previously cast this card (i.e. this is at least the 2nd cast).
+        # The current cast is already recorded in cards_cast_this_game before win check fires.
+        name = getattr(card, "name", None)
+        history = game_state.cards_cast_this_game.get(player.id, [])
+        return history.count(name) >= 2 if name else False
+
     elif condition_type == "llm_eval":
         return _llm_evaluate_win_condition(wc, player, game_state)
 
