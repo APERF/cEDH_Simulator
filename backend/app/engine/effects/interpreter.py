@@ -34,18 +34,31 @@ def execute_spell(card: "Card", game_state: "GameState", controller_id: str) -> 
             _run_effect(effect, game_state, controller_id, card)
 
 
+_TRIGGER_MAP: dict[str, str] = {
+    "upkeep": "upkeep_begin",     # LLM shorthand → event constant
+    "etb": "etb",
+    "ltb": "ltb",
+    "draw": "draw",
+    "spell_cast": "spell_cast",
+    "attacked": "attacked",
+    "turn_begin": "turn_begin",
+    "damage_dealt": "damage_dealt",
+}
+
+
 def json_to_card_effects(effects_json: dict) -> list:
     """
     Convert an effects_json dict into CardEffect objects for the trigger system.
-    Only converts non-spell_resolve triggers (etb, upkeep, draw, spell_cast).
+    Only converts non-spell_resolve triggers (etb, upkeep_begin, draw, spell_cast, etc.).
     spell_resolve is handled directly in stack.py via execute_spell().
     """
     from app.engine.effects import CardEffect
     results = []
     for effect_spec in effects_json.get("effects", []):
-        trigger = effect_spec.get("trigger")
-        if not trigger or trigger == "spell_resolve":
+        trigger_raw = effect_spec.get("trigger")
+        if not trigger_raw or trigger_raw == "spell_resolve":
             continue
+        trigger = _TRIGGER_MAP.get(trigger_raw, trigger_raw)
         spec = effect_spec  # capture for closure
 
         def _make_resolve(s: dict):
@@ -119,15 +132,29 @@ def _run_action(action: dict, gs: "GameState", controller_id: str, card: "Card")
         amount = action.get("amount", 0)
         to = action.get("to", "each_opponent")
         if to == "target":
-            # Auto-target for AI: the player with the fewest life points
-            # Human: log unsupported for now
             if player.is_human:
-                gs.log(f"{card_name}: targeting not yet supported for human player")
+                target_type = action.get("target_type", "any")
+                candidates: list[dict] = []
+                for opp in gs.get_opponents(controller_id):
+                    candidates.append({"id": opp.id, "name": opp.name, "controller_name": opp.name, "type": "player"})
+                    for c in opp.battlefield.permanents:
+                        if target_type == "any" or _matches_type_filter(c, target_type):
+                            candidates.append({"id": c.id, "name": c.name, "controller_name": opp.name, "type": "permanent"})
+                if candidates:
+                    gs.pending_target_choice = {
+                        "player_id": controller_id,
+                        "card_name": card_name,
+                        "action_type": "deal_damage",
+                        "target_type": target_type,
+                        "candidates": candidates,
+                        "action_params": {"amount": amount},
+                    }
+                    gs.log(f"{card_name}: {player.name} must choose a target for {amount} damage")
                 return
-            targets = sorted(gs.get_opponents(controller_id), key=lambda p: p.life_total)
-            if targets:
-                targets[0].life_total -= amount
-                gs.log(f"{card_name}: deals {amount} damage to {targets[0].name}")
+            targets_sorted = sorted(gs.get_opponents(controller_id), key=lambda p: p.life_total)
+            if targets_sorted:
+                targets_sorted[0].life_total -= amount
+                gs.log(f"{card_name}: deals {amount} damage to {targets_sorted[0].name}")
         else:
             for target in _resolve_who(to, gs, controller_id):
                 target.life_total -= amount
@@ -222,7 +249,29 @@ def _run_action(action: dict, gs: "GameState", controller_id: str, card: "Card")
 
     elif atype == "scry":
         amount = action.get("amount", 1)
-        gs.log(f"{card_name}: {player.name} scrys {amount} (auto-kept)")
+        look = list(player.library._cards)[:amount]
+        if not look:
+            gs.log(f"{card_name}: {player.name} scrys {amount} (library empty)")
+            return
+        if player.is_human:
+            gs.pending_look_arrange = {
+                "player_id": controller_id,
+                "card_name": card_name,
+                "keep_top": amount,
+                "scry_mode": True,
+                "cards": [{"id": c.id, "name": c.name, "image_uri": c.image_uri} for c in look],
+            }
+            gs.log(f"{card_name}: {player.name} scrys {amount} — awaiting choice")
+        else:
+            peeked = [player.library._cards.popleft() for _ in range(len(look))]
+            # keep high-CMC cards on top, bottom zero-value non-lands
+            keep = [c for c in sorted(peeked, key=lambda c: c.cmc or 0, reverse=True) if c.cmc > 0 or c.is_land]
+            bottom = [c for c in peeked if c not in keep]
+            for c in bottom:
+                player.library._cards.append(c)
+            for c in reversed(keep):
+                player.library._cards.appendleft(c)
+            gs.log(f"{card_name}: {player.name} scrys {amount} ({len(keep)} kept on top, {len(bottom)} to bottom)")
 
     elif atype == "mill":
         amount = action.get("amount", 1)
@@ -276,11 +325,118 @@ def _run_action(action: dict, gs: "GameState", controller_id: str, card: "Card")
         gs.log(f"{card_name}: {player.name} puts {len(put_back)} card(s) on top of library")
 
     elif atype in ("destroy", "exile", "bounce"):
-        # Single-target effects need targeting UI — log for now
         if player.is_human:
-            gs.log(f"{card_name}: single-target {atype} not yet supported for human player")
+            target_type = action.get("target_type", "permanent")
+            candidates = []
+            for opp in gs.get_opponents(controller_id):
+                for c in opp.battlefield.permanents:
+                    if _matches_type_filter(c, target_type):
+                        candidates.append({"id": c.id, "name": c.name, "controller_name": opp.name, "type": "permanent"})
+            if candidates:
+                gs.pending_target_choice = {
+                    "player_id": controller_id,
+                    "card_name": card_name,
+                    "action_type": atype,
+                    "target_type": target_type,
+                    "candidates": candidates,
+                    "action_params": {},
+                }
+                gs.log(f"{card_name}: {player.name} must choose a target for {atype}")
+            else:
+                gs.log(f"{card_name}: no valid targets for {atype}")
         else:
             _auto_target_removal(atype, action, gs, controller_id, card_name)
+
+    elif atype == "sacrifice":
+        target_type = action.get("target_type", "permanent")
+        who = action.get("who", "controller")
+        from app.models.schemas import Zone
+        for target in _resolve_who(who, gs, controller_id):
+            candidates = [c for c in target.battlefield.permanents if _matches_type_filter(c, target_type)]
+            if not candidates:
+                gs.log(f"{card_name}: {target.name} has no {target_type} to sacrifice")
+                continue
+            if target.is_human:
+                gs.pending_target_choice = {
+                    "player_id": target.id,
+                    "card_name": card_name,
+                    "action_type": "sacrifice",
+                    "target_type": target_type,
+                    "candidates": [{"id": c.id, "name": c.name, "controller_name": target.name, "type": "permanent"} for c in candidates],
+                    "action_params": {},
+                }
+                gs.log(f"{card_name}: {target.name} must sacrifice a {target_type}")
+            else:
+                victim = min(candidates, key=lambda c: c.cmc)
+                target.battlefield.remove(victim.id)
+                victim.zone = Zone.GRAVEYARD
+                target.graveyard.add(victim)
+                gs.log(f"{card_name}: {target.name} sacrifices {victim.name}")
+
+    elif atype == "return_from_graveyard":
+        filter_type = action.get("filter", "any")
+        destination = action.get("destination", "hand")
+        who = action.get("who", "controller")
+        from app.models.schemas import Zone
+        for target in _resolve_who(who, gs, controller_id):
+            candidates = [
+                c for c in target.graveyard._cards
+                if filter_type == "any" or filter_type.lower() in (c.type_line or "").lower()
+            ]
+            if not candidates:
+                gs.log(f"{card_name}: {target.name} has no {filter_type} in graveyard")
+                continue
+            chosen = max(candidates, key=lambda c: c.cmc)
+            target.graveyard._cards.remove(chosen)
+            if destination == "hand":
+                chosen.zone = Zone.HAND
+                target.hand._cards.append(chosen)
+            elif destination == "battlefield":
+                chosen.zone = Zone.BATTLEFIELD
+                chosen.tapped = False
+                target.battlefield.add(chosen)
+            elif destination == "top_of_library":
+                chosen.zone = Zone.LIBRARY
+                target.library._cards.appendleft(chosen)
+            gs.log(f"{card_name}: {target.name} returns {chosen.name} from graveyard to {destination}")
+
+    elif atype == "add_counters":
+        counter_type = action.get("counter_type", "+1/+1")
+        amount = action.get("amount", 1)
+        target_filter = action.get("target_filter", "self")
+        filter_type = action.get("filter", "creature")
+        who = action.get("who", "controller")
+        if target_filter == "self":
+            if card:
+                card.counters[counter_type] = card.counters.get(counter_type, 0) + amount
+                gs.log(f"{card_name}: gets {amount} {counter_type} counter(s) (total: {card.counters[counter_type]})")
+        else:
+            for target_player in _resolve_who(who, gs, controller_id):
+                for perm in target_player.battlefield.permanents:
+                    if _matches_type_filter(perm, filter_type):
+                        perm.counters[counter_type] = perm.counters.get(counter_type, 0) + amount
+                gs.log(f"{card_name}: {target_player.name}'s {filter_type}s get {amount} {counter_type} counter(s)")
+
+    elif atype == "tap_target":
+        target_type = action.get("target_type", "creature")
+        who = action.get("who", "each_opponent")
+        for target_player in _resolve_who(who, gs, controller_id):
+            candidates = [c for c in target_player.battlefield.permanents if _matches_type_filter(c, target_type) and not c.tapped]
+            if candidates:
+                chosen = max(candidates, key=lambda c: c.cmc)
+                chosen.tapped = True
+                gs.log(f"{card_name}: taps {chosen.name}")
+
+    elif atype == "tap_all":
+        target_type = action.get("target_type", "creature")
+        who = action.get("who", "each_opponent")
+        count = 0
+        for target_player in _resolve_who(who, gs, controller_id):
+            for perm in target_player.battlefield.permanents:
+                if _matches_type_filter(perm, target_type) and not perm.tapped:
+                    perm.tapped = True
+                    count += 1
+        gs.log(f"{card_name}: taps {count} {target_type}(s)")
 
     elif atype == "counter_spell":
         if not gs.stack.is_empty:

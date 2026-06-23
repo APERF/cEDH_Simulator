@@ -338,6 +338,67 @@ function ImprintModal({ candidates, gameId, onStateChange }: {
   );
 }
 
+// ── Target choice modal ──────────────────────────────────────────────────────
+
+function TargetChoiceModal({ pending, gameId, onStateChange }: {
+  pending: import("../types/game").PendingTargetChoice;
+  gameId: string;
+  onStateChange: (s: any) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { appendLog } = useGameStore();
+
+  const actionLabel: Record<string, string> = {
+    destroy: "Destroy",
+    exile: "Exile",
+    bounce: "Return to hand",
+    deal_damage: `Deal ${pending.action_params?.amount ?? "?"} damage to`,
+    sacrifice: "Sacrifice",
+  };
+
+  async function handleChoose(targetId: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await sendAction(gameId, { type: "target_choice", target_id: targetId });
+      appendLog(r.log);
+      onStateChange(await getGameState(gameId));
+    } catch {
+      setError("Failed to submit. Try again.");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fetch-overlay" style={{ zIndex: 9990 }}>
+      <div className="fetch-modal" style={{ maxWidth: 440 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6, color: "var(--gold-light)" }}>
+          {pending.card_name}
+        </div>
+        <div style={{ fontSize: 13, color: "var(--text)", marginBottom: 16 }}>
+          {actionLabel[pending.action_type] ?? pending.action_type} a target:
+        </div>
+        {error && <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 8 }}>{error}</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {pending.candidates.map(c => (
+            <button
+              key={c.id}
+              className="primary"
+              disabled={loading}
+              onClick={() => handleChoose(c.id)}
+              style={{ padding: "10px 14px", textAlign: "left", display: "flex", justifyContent: "space-between" }}
+            >
+              <span>{c.name}</span>
+              <span style={{ opacity: 0.6, fontSize: 12 }}>{c.controller_name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Game component ───────────────────────────────────────────────────────────
 
 export function Game() {
@@ -698,6 +759,13 @@ export function Game() {
               {gameState?.pending_imprint_choice && (
                 <ImprintModal
                   candidates={gameState.pending_imprint_choice.candidates}
+                  gameId={gameId!}
+                  onStateChange={applyNewState}
+                />
+              )}
+              {gameState?.pending_target_choice && (
+                <TargetChoiceModal
+                  pending={gameState.pending_target_choice}
                   gameId={gameId!}
                   onStateChange={applyNewState}
                 />

@@ -1997,6 +1997,20 @@
   font-family: monospace;
 }
 
+.stack-ability-badge {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #a78bfa;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-top: 2px;
+  align-self: center;
+}
+
 .stack-card--top .stack-card-img,
 .stack-card--top .stack-card-text {
   outline: 2px solid var(--gold-light);

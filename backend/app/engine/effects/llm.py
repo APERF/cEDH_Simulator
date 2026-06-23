@@ -118,9 +118,12 @@ Example — Mox Diamond:
 ## effects — Trigger Values
 - "spell_resolve" — instant or sorcery resolves
 - "etb" — permanent enters the battlefield
-- "upkeep" — beginning of controller's upkeep
+- "ltb" — permanent leaves the battlefield
+- "upkeep_begin" — beginning of controller's upkeep (NOT "upkeep" — use "upkeep_begin")
+- "turn_begin" — beginning of controller's turn (before untap)
 - "draw" — controller draws a card
 - "spell_cast" — any player casts a spell
+- "attacked" — this creature was declared as an attacker
 
 ## compute_amount — Dynamic X Values
 
@@ -162,6 +165,14 @@ Library:   {"type": "scry", "amount": 2}
            {"type": "exile_library_until_named", "exile_top_first": 6, "put_named_in_hand": true}
            {"type": "look_arrange", "compute_amount": "devotion:U", "keep_top": 1, "rest": "bottom_any_order"}
            — look at top X cards (X from compute_amount or amount), put up to keep_top on top, rest to bottom
+Sacrifice: {"type": "sacrifice", "target_type": "creature", "who": "controller"}
+           {"type": "sacrifice", "target_type": "permanent", "who": "each_opponent"}
+Graveyard: {"type": "return_from_graveyard", "filter": "creature", "destination": "hand", "who": "controller"}
+           — destination: "hand" | "battlefield" | "top_of_library"
+Counters:  {"type": "add_counters", "counter_type": "+1/+1", "amount": 1, "target_filter": "self"}
+           {"type": "add_counters", "counter_type": "+1/+1", "amount": 1, "target_filter": "controller_permanents", "filter": "creature", "who": "controller"}
+Tap:       {"type": "tap_target", "target_type": "creature", "who": "each_opponent"}
+           {"type": "tap_all", "target_type": "creature", "who": "each_opponent"}
 Counter:   {"type": "counter_spell"}
 
 ## activated_abilities

@@ -500,12 +500,15 @@ async def player_action(game_id: str, action: dict):
         log_before = len(gs.game_log)
         if not gs.stack.is_empty:
             top_obj = gs.stack.objects[-1]
-            # Check ETB replacement registry first, then effects_json
-            from app.engine.effects.registry import ETB_REPLACEMENTS
-            etb_rep = ETB_REPLACEMENTS.get(top_obj.card.name)
-            if not etb_rep:
-                spec = getattr(top_obj.card, "effects_json", None)
-                etb_rep = (spec or {}).get("etb_replacement") if spec and not spec.get("skip") else None
+            # ETB replacement effects only apply to spells entering the battlefield,
+            # not to triggered abilities already on the stack.
+            etb_rep = None
+            if not top_obj.is_ability:
+                from app.engine.effects.registry import ETB_REPLACEMENTS
+                etb_rep = ETB_REPLACEMENTS.get(top_obj.card.name)
+                if not etb_rep:
+                    spec = getattr(top_obj.card, "effects_json", None)
+                    etb_rep = (spec or {}).get("etb_replacement") if spec and not spec.get("skip") else None
 
             if etb_rep:
                 ctrl = gs.get_player(top_obj.controller_id)
@@ -526,7 +529,11 @@ async def player_action(game_id: str, action: dict):
             if gs.pending_etb_replacement is None:
                 obj = gs.stack.resolve_top(gs)
                 if obj:
-                    gs.log(f"{obj.card.name} resolves")
+                    label = (
+                        obj.ability_description if obj.is_ability and obj.ability_description
+                        else obj.card.name
+                    )
+                    gs.log(f"{label} resolves")
         elif gs.active_player.is_human:
             # Stack is empty — advance the phase (only valid on human's turn)
             gs.advance_step()
@@ -1194,6 +1201,73 @@ async def player_action(game_id: str, action: dict):
 
         gs.log(msg)
         return {"status": "ok", "log": [msg]}
+
+    if action_type == "target_choice":
+        log_before = len(gs.game_log)
+        if not gs.pending_target_choice:
+            raise HTTPException(status_code=400, detail="No pending target choice")
+        pending = gs.pending_target_choice
+        gs.pending_target_choice = None
+
+        target_id = (action.get("target_id") or "").strip()
+        if not target_id:
+            raise HTTPException(status_code=400, detail="Must provide target_id")
+
+        valid_ids = {c["id"] for c in pending.get("candidates", [])}
+        if target_id not in valid_ids:
+            raise HTTPException(status_code=400, detail="Invalid target")
+
+        atype = pending["action_type"]
+        card_name = pending.get("card_name", "Unknown")
+        params = pending.get("action_params", {})
+
+        # Try battlefield permanents first
+        target_found = False
+        for p in gs.players:
+            card = p.battlefield.get(target_id)
+            if card:
+                target_found = True
+                if atype == "destroy":
+                    if not card.has_keyword("Indestructible"):
+                        p.battlefield.remove(card.id)
+                        card.zone = Zone.GRAVEYARD
+                        p.graveyard.add(card)
+                        gs.log(f"{card_name}: destroys {card.name}")
+                    else:
+                        gs.log(f"{card_name}: {card.name} is Indestructible")
+                elif atype == "exile":
+                    p.battlefield.remove(card.id)
+                    card.zone = Zone.EXILE
+                    p.exile.add(card)
+                    gs.log(f"{card_name}: exiles {card.name}")
+                elif atype == "bounce":
+                    p.battlefield.remove(card.id)
+                    card.zone = Zone.HAND
+                    p.hand._cards.append(card)
+                    gs.log(f"{card_name}: bounces {card.name} to hand")
+                elif atype == "deal_damage":
+                    amount = params.get("amount", 0)
+                    card.damage_taken = getattr(card, "damage_taken", 0) + amount
+                    gs.log(f"{card_name}: deals {amount} damage to {card.name}")
+                elif atype == "sacrifice":
+                    p.battlefield.remove(card.id)
+                    card.zone = Zone.GRAVEYARD
+                    p.graveyard.add(card)
+                    gs.log(f"{card_name}: {p.name} sacrifices {card.name}")
+                break
+
+        # If not a battlefield permanent, try player targets (deal_damage to player)
+        if not target_found:
+            for p in gs.players:
+                if p.id == target_id:
+                    if atype == "deal_damage":
+                        amount = params.get("amount", 0)
+                        p.life_total -= amount
+                        gs.log(f"{card_name}: deals {amount} damage to {p.name}")
+                    break
+
+        gs.check_state_based_actions()
+        return {"status": "ok", "log": gs.game_log[log_before:]}
 
     return {"status": "ok", "log": []}
 

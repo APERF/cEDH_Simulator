@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 from app.engine.effects import (
     CardEffect, GameEvent,
-    EVENT_ETB, EVENT_SPELL_CAST, EVENT_DRAW,
+    EVENT_ETB, EVENT_SPELL_CAST, EVENT_DRAW, EVENT_LTB,
     EVENT_UPKEEP_BEGIN, EVENT_TURN_BEGIN, EVENT_ATTACKED,
 )
 
@@ -24,9 +24,12 @@ if TYPE_CHECKING:
 
 def _draw(gs: "GameState", player_id: str, n: int = 1) -> None:
     p = gs.get_player(player_id)
-    if p:
-        p.draw(n)
-        gs.log(f"{p.name} draws {n} card(s)")
+    if not p:
+        return
+    p.draw(n)
+    gs.log(f"{p.name} draws {n} card(s)")
+    for _ in range(n):
+        gs.fire_event(GameEvent(type=EVENT_DRAW, controller_id=player_id, data={"amount": 1}))
 
 
 def _add_mana(gs: "GameState", player_id: str, **colors: int) -> None:

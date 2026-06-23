@@ -54,6 +54,7 @@ export function StackOverlay({ gameState, onStateChange, onHoldPriority }: Props
 
   const topCasterId = stack[0]?.controller_id ?? null;
   const topCasterName = stack[0]?.controller_name ?? "";
+  const topIsAbility = stack[0]?.is_ability ?? false;
   const humanCastTop = !!human && topCasterId === human.id;
 
   // Priority order (excluding caster) in turn/seat order.
@@ -187,7 +188,13 @@ export function StackOverlay({ gameState, onStateChange, onHoldPriority }: Props
         <div className="stack-header">
           <h2>The Stack</h2>
           <p className="stack-sub">
-            {humanCastTop
+            {topIsAbility
+              ? humanCastTop
+                ? "Your triggered ability — pass priority to let it resolve."
+                : phase === "pre_human_ai"
+                ? `${topCasterName}'s triggered ability — waiting for players before you…`
+                : `${topCasterName}'s triggered ability — you may respond before it resolves.`
+              : humanCastTop
               ? "You cast a spell — you have priority first."
               : phase === "pre_human_ai"
               ? `${topCasterName} cast a spell — waiting for players before you…`
@@ -212,7 +219,8 @@ export function StackOverlay({ gameState, onStateChange, onHoldPriority }: Props
                 <div className="stack-card-text">{item.name}</div>
               )}
               <div className="stack-controller-badge">{item.controller_name}</div>
-              {item.mana_cost && <div className="stack-mana-cost">{item.mana_cost}</div>}
+              {!item.is_ability && item.mana_cost && <div className="stack-mana-cost">{item.mana_cost}</div>}
+              {item.is_ability && <div className="stack-ability-badge">Triggered Ability</div>}
             </div>
           ))}
         </div>

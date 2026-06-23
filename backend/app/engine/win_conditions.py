@@ -72,12 +72,6 @@ def check_etb_win_conditions(game_state: GameState, card: Card, player_id: str) 
     if player is None:
         return False
 
-    # Direct Thassa's Oracle check — wins whenever library is empty on ETB
-    if card.name == "Thassa's Oracle" and len(player.library) == 0:
-        game_state.log(f"{player.name} wins the game! (Thassa's Oracle — empty library on ETB)")
-        game_state.winner = player_id
-        return True
-
     spec = getattr(card, "effects_json", None)
     if not spec or spec.get("skip"):
         return False
@@ -127,15 +121,10 @@ def check_win_conditions(game_state: GameState) -> str | None:
 
     for player in alive:
         for card in player.battlefield.permanents:
-            # Direct Thassa's Oracle check — wins any time library is empty
-            if card.name == "Thassa's Oracle" and len(player.library) == 0:
-                game_state.log(f"{player.name} wins the game! (Thassa's Oracle — empty library)")
-                return player.id
-
             spec = getattr(card, "effects_json", None)
             if spec and not spec.get("skip"):
                 wc = spec.get("win_condition")
-                if wc and wc.get("trigger") in ("state_based", "etb"):
+                if wc and wc.get("trigger") == "state_based":
                     if _evaluate_win_condition(wc, card, player, game_state):
                         game_state.log(f"{player.name} wins the game! ({card.name})")
                         return player.id

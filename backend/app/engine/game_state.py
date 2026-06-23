@@ -71,6 +71,7 @@ class GameState:
         self.pending_dc_name: dict | None = None          # Demonic Consultation name choice awaiting human
         self.pending_imprint_choice: dict | None = None   # Chrome Mox imprint card choice awaiting human
         self.pending_look_arrange: dict | None = None     # look_arrange awaiting human top-card choice
+        self.pending_target_choice: dict | None = None   # targeting awaiting human choice
 
     @property
     def active_player(self) -> Player:
@@ -213,6 +214,13 @@ class GameState:
             self.combat_attackers[card_id] = target_player_id
             target = self.get_player(target_player_id)
             self.log(f"{attacker_player.name}: {card.name} attacks {target.name if target else '?'}")
+            self.fire_event(GameEvent(
+                type=EVENT_ATTACKED,
+                source_card_id=card_id,
+                source_name=card.name,
+                controller_id=attacker_player.id,
+                data={"target_player_id": target_player_id},
+            ))
 
     def _ai_declare_blockers_for_all(self) -> None:
         attackers_by_target: dict[str, list[Card]] = {}
@@ -399,10 +407,50 @@ class GameState:
     # ── Effect engine ─────────────────────────────────────────────────────────
 
     def fire_event(self, event: GameEvent) -> None:
-        """Collect triggered effects from all battlefield permanents and queue them."""
+        """
+        Collect triggered effects and push them onto the game stack so players
+        can respond before they resolve.  Optional/needs_choice effects for the
+        human player still go to pending_choices (they need an immediate modal).
+        """
+        import uuid as _uuid
         from app.engine.effects.resolver import collect_triggers
+        from app.engine.effects import _find_card
+        from app.engine.stack import StackObject
+
         new_effects = collect_triggers(event, self)
-        self.effect_queue.extend(new_effects)
+        if not new_effects:
+            return
+
+        human = next((p for p in self.players if p.is_human), None)
+
+        for pending in new_effects:
+            # Optional / needs_choice effects where the human is the controller
+            # require an immediate Yes/No modal — keep the existing pending_choices flow.
+            if (pending.effect.optional or pending.effect.needs_choice) and human and pending.controller_id == human.id:
+                self.pending_choices.append(pending)
+                continue
+
+            # All other triggered abilities go onto the real game stack so they
+            # are visible and opponents can respond before resolution.
+            source = _find_card(self, pending.source_card_id)
+            if source is None:
+                # Source card not findable — fall back to immediate execution.
+                pending.execute(self)
+                continue
+
+            def _make_trigger_resolve(p):
+                def resolve_fn(gs):
+                    p.execute(gs)
+                return resolve_fn
+
+            self.stack.push(StackObject(
+                id=str(_uuid.uuid4()),
+                card=source,
+                controller_id=pending.controller_id,
+                resolve_fn=_make_trigger_resolve(pending),
+                is_ability=True,
+                ability_description=pending.description,
+            ))
 
     def flush_effect_queue(self) -> None:
         """Resolve all queued effects (AI-controlled or mandatory) until queue is empty."""
@@ -454,6 +502,7 @@ class GameState:
             "pending_dc_name": self.pending_dc_name,
             "pending_imprint_choice": self.pending_imprint_choice,
             "pending_look_arrange": self.pending_look_arrange,
+            "pending_target_choice": self.pending_target_choice,
             "mulligan_phase": self.mulligan_phase,
             "mulligan_count": self.human_mulligan_count,
             "cards_to_bottom": self.cards_to_bottom,

@@ -157,6 +157,7 @@ export interface StackItem {
   mana_cost: string | null;
   controller_id: string;
   controller_name: string;
+  is_ability?: boolean;
 }
 
 export interface PendingEffectChoice {
@@ -189,6 +190,22 @@ export interface PendingETBReplacement {
   etb_replacement: ETBReplacement;
 }
 
+export interface TargetCandidate {
+  id: string;
+  name: string;
+  controller_name: string;
+  type: "permanent" | "player";
+}
+
+export interface PendingTargetChoice {
+  player_id: string;
+  card_name: string;
+  action_type: string;
+  target_type: string;
+  candidates: TargetCandidate[];
+  action_params: Record<string, number>;
+}
+
 export interface GameState {
   game_id: string;
   mulligan_phase: "mulliganing" | "selecting_bottom" | "playing";
@@ -216,6 +233,14 @@ export interface GameState {
     player_id: string;
     mox_id: string;
     candidates: { id: string; name: string }[];
+  } | null;
+  pending_target_choice: PendingTargetChoice | null;
+  pending_look_arrange: {
+    player_id: string;
+    card_name: string;
+    keep_top: number;
+    scry_mode?: boolean;
+    cards: { id: string; name: string; image_uri: string | null }[];
   } | null;
 }
 
@@ -268,7 +293,9 @@ export type ActionType =
   | "etb_replacement_choice"
   | "dc_name_choice"
   | "imprint_choice"
-  | "equip";
+  | "equip"
+  | "target_choice"
+  | "resolve_look_arrange";
 
 export interface GameAction {
   type: ActionType;
@@ -283,4 +310,5 @@ export interface GameAction {
   named_card?: string;
   equipment_id?: string;
   creature_id?: string;
+  target_id?: string;
 }

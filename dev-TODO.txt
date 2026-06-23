@@ -18,6 +18,15 @@ cEDH Simulator — Dev TODO
 [x] Draw a card at the start of each turn
 [x] Implement combat (declare attackers/blockers, damage assignment)
 [x] make a dev tool that allows you to select opening hand
+[x] transfer db to postgres
+[ ] schema: add sacrifice_on_tap field to effects_json + LLM prompt, replace LED/Jeweled Lotus/Lotus Petal hardcoding in game.py with schema-driven logic
+[ ] schema: add condition evaluator to collect_triggers() — unlock conditional triggers (Felidar Sovereign, Aetherflux Reservoir, Approach of the Second Sun second-cast check)
+[ ] schema: add static_abilities array to effects_json + schema-driven apply_static_effects() — unlock Rhystic Study tax, Smothering Tithe, Esper Sentinel, Grand Arbiter cost reduction
+[ ] schema: add combat_damage_trigger to effects_json — unlock Edric, Tymna, Kraum, Najeela, any "whenever deals combat damage" card
+[ ] schema: add draw replacement_effects to effects_json — move Lab Man / Jace win condition from hardcode to schema; support Hullbreacher-style draw redirects
+[ ] cleanup: shrink registry.py — remove SPELL_REGISTRY / ETB_REGISTRY entries for any card the interpreter now handles correctly; registry should only cover genuinely inexpressible cards
+[ ] schema: add duration tracking ("until end of turn") — expire temporary effects at CLEANUP step; unlock pump spells, flash-in effects, temporary keyword grants
+[ ] schema: add full replacement_effects array + _apply_replacements() intercept in fire_event() — unlock Leyline of the Void, Rest in Peace, Grafdigger's Cage, damage prevention
 [ ] turn UI to be fully Reactive
 [ ] implement abilities and ETB triggers
 [ ] fix UI Mulligan bug
@@ -27,11 +36,8 @@ cEDH Simulator — Dev TODO
 [ ] fix lands being able to be untapped after mana has been used
 [ ] disable auto-discard
 [ ] Graveyard / exile zone display
-[x] implement player-field zoom-in
-[x] implement casting spells
 [ ] implement Turn 0 logic
 [ ] check why AI lands come into play tapped
 [ ] test AI to make sure they play after turn 1
 [ ] fix UI hover sticking on Stack UI
 [ ] add AI Mana Pools and reimagine Mana Pool UI
-[x] transfer db to postgres

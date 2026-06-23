@@ -73,9 +73,9 @@ class Stack:
                     )
                     game_state.fire_event(event)
                     game_state.flush_effect_queue()
-                    if not game_state.winner:
-                        from app.engine.win_conditions import check_etb_win_conditions
-                        check_etb_win_conditions(game_state, obj.card, obj.controller_id)
+                    # ETB win conditions are now handled as triggered abilities on the
+                    # stack (via fire_event → CardEffect → StackObject).  Do NOT call
+                    # check_etb_win_conditions here — that would bypass the stack.
                 elif obj.card.zone == _Zone.GRAVEYARD:
                     from app.engine.effects.registry import SPELL_REGISTRY
                     spell_fn = SPELL_REGISTRY.get(obj.card.name)
